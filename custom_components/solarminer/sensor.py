@@ -155,12 +155,28 @@ class SolarMinerPowerSensor(SolarMinerSensorEntity):
             if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
                 summary_item = summary_data["SUMMARY"][0]
                 # Try different power field names used by LuxOS
-                for power_field in ["Power", "Power Consumption", "Watts"]:
+                power_fields = [
+                    "Power", "Power Consumption", "Watts", "Power Usage",
+                    "Utility", "Work Utility"  # Sometimes LuxOS reports efficiency metrics
+                ]
+                for power_field in power_fields:
                     power_str = summary_item.get(power_field, "0")
                     try:
-                        return float(power_str)
+                        power_val = float(power_str)
+                        if power_val > 0:
+                            return power_val
                     except (ValueError, TypeError):
                         continue
+                
+                # If no direct power reading, estimate from hashrate (S21+ typically 17.5 J/TH)
+                hashrate_str = summary_item.get("GHS 5s", "0")
+                try:
+                    hashrate_ghs = float(hashrate_str)
+                    hashrate_ths = hashrate_ghs / 1000
+                    estimated_power = hashrate_ths * 17.5  # S21+ efficiency
+                    return round(estimated_power) if estimated_power > 0 else None
+                except (ValueError, TypeError):
+                    pass
         return None
 
 
@@ -223,13 +239,33 @@ class SolarMinerFanSpeedSensor(SolarMinerSensorEntity):
             summary_data = self.coordinator.data["summary"]
             if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
                 summary_item = summary_data["SUMMARY"][0]
-                # Try different fan speed field names
-                for fan_field in ["Fan Speed In", "Fan1", "Fan2", "FanSpeedIn", "Fan Speed"]:
+                # Try different fan speed field names used by LuxOS
+                fan_fields = [
+                    "Fan Speed In", "Fan1", "Fan2", "FanSpeedIn", "Fan Speed",
+                    "Fan1 Speed", "Fan2 Speed", "Fan 1", "Fan 2"
+                ]
+                for fan_field in fan_fields:
                     fan_speed_str = summary_item.get(fan_field, "0")
                     try:
-                        return float(fan_speed_str)
+                        fan_speed = float(fan_speed_str)
+                        if fan_speed > 0:
+                            return fan_speed
                     except (ValueError, TypeError):
                         continue
+                        
+        # Also try to get fan speed from stats if not in summary
+        if self.coordinator.data and "stats" in self.coordinator.data:
+            stats_data = self.coordinator.data["stats"]
+            if "STATS" in stats_data:
+                for stat_item in stats_data["STATS"]:
+                    for fan_field in ["Fan1", "Fan2", "fan1", "fan2"]:
+                        fan_speed_str = stat_item.get(fan_field, "0")
+                        try:
+                            fan_speed = float(fan_speed_str)
+                            if fan_speed > 0:
+                                return fan_speed
+                        except (ValueError, TypeError):
+                            continue
         return None
 
 
@@ -307,19 +343,43 @@ class SolarMinerBoardSensor(SolarMinerSensorEntity):
                 if self._board_id < len(devs):
                     dev = devs[self._board_id]
                     # Try different hashrate field names
-                    for hashrate_field in ["GHS 5s", "MHS 5s", "Hashrate", "GHS av"]:
+                    hashrate_fields = [
+                        "GHS 5s", "GHS av", "MHS 5s", "MHS av", 
+                        "Hashrate", "Hash Rate", "5s", "Avg"
+                    ]
+                    for hashrate_field in hashrate_fields:
                         hashrate_str = dev.get(hashrate_field, "0")
                         try:
                             hashrate = float(hashrate_str)
-                            # Convert based on unit
-                            if hashrate_field.startswith("GHS"):
-                                return hashrate / 1000  # GH/s to TH/s
-                            elif hashrate_field.startswith("MHS"):
-                                return hashrate / 1000000  # MH/s to TH/s
-                            else:
-                                return hashrate / 1000  # Assume GH/s
+                            if hashrate > 0:
+                                # Convert based on unit
+                                if hashrate_field.startswith("GHS") or "GHS" in hashrate_field:
+                                    return hashrate / 1000  # GH/s to TH/s
+                                elif hashrate_field.startswith("MHS") or "MHS" in hashrate_field:
+                                    return hashrate / 1000000  # MH/s to TH/s
+                                else:
+                                    # For S21+, individual boards typically show 60-80 TH/s
+                                    # If value is very high, it's likely GH/s
+                                    if hashrate > 1000:
+                                        return hashrate / 1000  # GH/s to TH/s
+                                    else:
+                                        return hashrate  # Already in TH/s
                         except (ValueError, TypeError):
                             continue
+                            
+                # If no individual board data, estimate from total hashrate
+                if self.coordinator.data and "summary" in self.coordinator.data:
+                    summary_data = self.coordinator.data["summary"]
+                    if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
+                        summary_item = summary_data["SUMMARY"][0]
+                        total_hashrate_str = summary_item.get("GHS 5s", "0")
+                        try:
+                            total_hashrate_ghs = float(total_hashrate_str)
+                            total_hashrate_ths = total_hashrate_ghs / 1000
+                            # S21+ has 3 boards, distribute evenly
+                            return round(total_hashrate_ths / 3, 2)
+                        except (ValueError, TypeError):
+                            pass
         return None
     
     @property
@@ -468,8 +528,20 @@ class SolarMinerStatusSensor(SolarMinerSensorEntity):
             summary_data = self.coordinator.data["summary"]
             if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
                 summary_item = summary_data["SUMMARY"][0]
-                return summary_item.get("Status", "Unknown")
-        return None
+                # Try different status field names
+                for status_field in ["Status", "STATUS", "State", "Alive", "Miner Status"]:
+                    status = summary_item.get(status_field)
+                    if status and status != "Unknown":
+                        return status
+                        
+                # Check if miner is working based on hashrate
+                hashrate_str = summary_item.get("GHS 5s", "0")
+                try:
+                    hashrate = float(hashrate_str)
+                    return "Mining" if hashrate > 0 else "Idle"
+                except (ValueError, TypeError):
+                    pass
+        return "Unknown"
 
 
 class SolarMinerUptimeSensor(SolarMinerSensorEntity):

@@ -75,11 +75,13 @@ class SolarMinerDataUpdateCoordinator(DataUpdateCoordinator):
             summary = await self.client.get_summary()
             pools = await self.client.get_pools()
             devs = await self.client.get_devs()
+            stats = await self.client.get_stats()
             
             return {
                 "summary": summary,
                 "pools": pools,
                 "devs": devs,
+                "stats": stats,
                 "last_update": self.hass.loop.time(),
             }
         except Exception as exception:
