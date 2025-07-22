@@ -117,12 +117,16 @@ class SolarMinerHashrateSensor(SolarMinerSensorEntity):
     def native_value(self) -> float | None:
         """Return the hashrate."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            hashrate_str = self.coordinator.data["summary"].get("GHS 5s", "0")
-            try:
-                # Convert GH/s to TH/s
-                return float(hashrate_str) / 1000
-            except (ValueError, TypeError):
-                return None
+            summary_data = self.coordinator.data["summary"]
+            # LuxOS returns data in SUMMARY array
+            if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
+                summary_item = summary_data["SUMMARY"][0]
+                hashrate_str = summary_item.get("GHS 5s", "0")
+                try:
+                    # Convert GH/s to TH/s
+                    return float(hashrate_str) / 1000
+                except (ValueError, TypeError):
+                    return None
         return None
 
 
@@ -146,11 +150,17 @@ class SolarMinerPowerSensor(SolarMinerSensorEntity):
     def native_value(self) -> float | None:
         """Return the power consumption."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            power_str = self.coordinator.data["summary"].get("Power", "0")
-            try:
-                return float(power_str)
-            except (ValueError, TypeError):
-                return None
+            summary_data = self.coordinator.data["summary"]
+            # LuxOS returns data in SUMMARY array
+            if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
+                summary_item = summary_data["SUMMARY"][0]
+                # Try different power field names used by LuxOS
+                for power_field in ["Power", "Power Consumption", "Watts"]:
+                    power_str = summary_item.get(power_field, "0")
+                    try:
+                        return float(power_str)
+                    except (ValueError, TypeError):
+                        continue
         return None
 
 
@@ -174,14 +184,19 @@ class SolarMinerTemperatureSensor(SolarMinerSensorEntity):
     def native_value(self) -> float | None:
         """Return the temperature."""
         if self.coordinator.data and "devs" in self.coordinator.data:
-            temps = []
-            for dev in self.coordinator.data["devs"].get("DEVS", []):
-                temp_str = dev.get("Temperature", "0")
-                try:
-                    temps.append(float(temp_str))
-                except (ValueError, TypeError):
-                    continue
-            return max(temps) if temps else None
+            devs_data = self.coordinator.data["devs"]
+            # LuxOS returns data in DEVS array
+            if "DEVS" in devs_data:
+                temps = []
+                for dev in devs_data["DEVS"]:
+                    # Try different temperature field names
+                    for temp_field in ["Temperature", "Temp", "temp1", "temp2", "temp3"]:
+                        temp_str = dev.get(temp_field, "0")
+                        try:
+                            temps.append(float(temp_str))
+                        except (ValueError, TypeError):
+                            continue
+                return max(temps) if temps else None
         return None
 
 
@@ -205,11 +220,16 @@ class SolarMinerFanSpeedSensor(SolarMinerSensorEntity):
     def native_value(self) -> float | None:
         """Return the fan speed."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            fan_speed_str = self.coordinator.data["summary"].get("Fan Speed In", "0")
-            try:
-                return float(fan_speed_str)
-            except (ValueError, TypeError):
-                return None
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
+                summary_item = summary_data["SUMMARY"][0]
+                # Try different fan speed field names
+                for fan_field in ["Fan Speed In", "Fan1", "Fan2", "FanSpeedIn", "Fan Speed"]:
+                    fan_speed_str = summary_item.get(fan_field, "0")
+                    try:
+                        return float(fan_speed_str)
+                    except (ValueError, TypeError):
+                        continue
         return None
 
 
@@ -233,16 +253,29 @@ class SolarMinerEfficiencySensor(SolarMinerSensorEntity):
     def native_value(self) -> float | None:
         """Return the efficiency in J/TH."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            summary = self.coordinator.data["summary"]
-            try:
-                power = float(summary.get("Power", "0"))
-                hashrate_ghs = float(summary.get("GHS 5s", "0"))
-                hashrate_ths = hashrate_ghs / 1000
-                
-                if hashrate_ths > 0:
-                    return round((power / hashrate_ths) * 3.6, 2)  # Convert W/TH to J/TH
-            except (ValueError, TypeError, ZeroDivisionError):
-                pass
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
+                summary = summary_data["SUMMARY"][0]
+                try:
+                    # Try different power field names
+                    power = 0
+                    for power_field in ["Power", "Power Consumption", "Watts"]:
+                        power_str = summary.get(power_field, "0")
+                        try:
+                            power = float(power_str)
+                            if power > 0:
+                                break
+                        except (ValueError, TypeError):
+                            continue
+                    
+                    # Get hashrate
+                    hashrate_ghs = float(summary.get("GHS 5s", "0"))
+                    hashrate_ths = hashrate_ghs / 1000
+                    
+                    if hashrate_ths > 0 and power > 0:
+                        return round(power / hashrate_ths, 2)  # W/TH (J/TH = W/TH for continuous operation)
+                except (ValueError, TypeError, ZeroDivisionError):
+                    pass
         return None
 
 
@@ -268,29 +301,45 @@ class SolarMinerBoardSensor(SolarMinerSensorEntity):
     def native_value(self) -> float | None:
         """Return the board hashrate."""
         if self.coordinator.data and "devs" in self.coordinator.data:
-            devs = self.coordinator.data["devs"].get("DEVS", [])
-            if self._board_id < len(devs):
-                hashrate_str = devs[self._board_id].get("GHS 5s", "0")
-                try:
-                    return float(hashrate_str) / 1000  # Convert to TH/s
-                except (ValueError, TypeError):
-                    return None
+            devs_data = self.coordinator.data["devs"]
+            if "DEVS" in devs_data:
+                devs = devs_data["DEVS"]
+                if self._board_id < len(devs):
+                    dev = devs[self._board_id]
+                    # Try different hashrate field names
+                    for hashrate_field in ["GHS 5s", "MHS 5s", "Hashrate", "GHS av"]:
+                        hashrate_str = dev.get(hashrate_field, "0")
+                        try:
+                            hashrate = float(hashrate_str)
+                            # Convert based on unit
+                            if hashrate_field.startswith("GHS"):
+                                return hashrate / 1000  # GH/s to TH/s
+                            elif hashrate_field.startswith("MHS"):
+                                return hashrate / 1000000  # MH/s to TH/s
+                            else:
+                                return hashrate / 1000  # Assume GH/s
+                        except (ValueError, TypeError):
+                            continue
         return None
     
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return additional attributes."""
         if self.coordinator.data and "devs" in self.coordinator.data:
-            devs = self.coordinator.data["devs"].get("DEVS", [])
-            if self._board_id < len(devs):
-                dev = devs[self._board_id]
-                return {
-                    "temperature": dev.get("Temperature"),
-                    "frequency": dev.get("Frequency"),
-                    "voltage": dev.get("Voltage"),
-                    "status": dev.get("Status"),
-                    "chip_count": dev.get("Chip Count"),
-                }
+            devs_data = self.coordinator.data["devs"]
+            if "DEVS" in devs_data:
+                devs = devs_data["DEVS"]
+                if self._board_id < len(devs):
+                    dev = devs[self._board_id]
+                    return {
+                        "temperature": dev.get("Temperature"),
+                        "frequency": dev.get("Frequency"),
+                        "voltage": dev.get("Voltage"),
+                        "status": dev.get("Status"),
+                        "chip_count": dev.get("Chip Count"),
+                        "device_elapsed": dev.get("Device Elapsed"),
+                        "enabled": dev.get("Enabled"),
+                    }
         return {}
 
 
@@ -416,7 +465,10 @@ class SolarMinerStatusSensor(SolarMinerSensorEntity):
     def native_value(self) -> str | None:
         """Return the miner status."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            return self.coordinator.data["summary"].get("Status", "Unknown")
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
+                summary_item = summary_data["SUMMARY"][0]
+                return summary_item.get("Status", "Unknown")
         return None
 
 
@@ -440,10 +492,13 @@ class SolarMinerUptimeSensor(SolarMinerSensorEntity):
     def native_value(self) -> float | None:
         """Return the uptime in days."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            elapsed_str = self.coordinator.data["summary"].get("Elapsed", "0")
-            try:
-                elapsed_seconds = float(elapsed_str)
-                return round(elapsed_seconds / 86400, 2)  # Convert to days
-            except (ValueError, TypeError):
-                return None
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
+                summary_item = summary_data["SUMMARY"][0]
+                elapsed_str = summary_item.get("Elapsed", "0")
+                try:
+                    elapsed_seconds = float(elapsed_str)
+                    return round(elapsed_seconds / 86400, 2)  # Convert to days
+                except (ValueError, TypeError):
+                    return None
         return None
