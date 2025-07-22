@@ -1,0 +1,129 @@
+set_solar_power:
+  name: Set Solar Power
+  description: Set the available solar power in watts for automatic solar mining
+  target:
+    entity:
+      integration: solarminer
+  fields:
+    power_watts:
+      name: Power (Watts)
+      description: Available solar power in watts
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 50000
+          step: 100
+          unit_of_measurement: "W"
+
+apply_sun_curve:
+  name: Apply Sun Curve
+  description: Apply automatic sun curve power adjustment based on time of day
+  target:
+    entity:
+      integration: solarminer
+  fields:
+    enable:
+      name: Enable
+      description: Enable or disable sun curve mode
+      required: true
+      selector:
+        boolean:
+
+set_hashboard_power:
+  name: Set Hashboard Power
+  description: Control individual hashboard power and status
+  target:
+    entity:
+      integration: solarminer
+  fields:
+    board:
+      name: Board Number
+      description: Hashboard number (0, 1, or 2)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 2
+          step: 1
+    enabled:
+      name: Enabled
+      description: Enable or disable the hashboard
+      required: true
+      selector:
+        boolean:
+
+emergency_stop:
+  name: Emergency Stop
+  description: Immediately stop all mining operations and disable all hashboards
+  target:
+    entity:
+      integration: solarminer
+
+set_power_profile:
+  name: Set Power Profile
+  description: Apply a specific overclocking/underclocking profile
+  target:
+    entity:
+      integration: solarminer
+  fields:
+    profile:
+      name: Profile
+      description: Power profile to apply
+      required: true
+      selector:
+        select:
+          options:
+            - "max_power"
+            - "balanced"
+            - "ultra_eco"
+
+set_night_mode:
+  name: Set Night Mode
+  description: Apply night mode power settings for quiet operation
+  target:
+    entity:
+      integration: solarminer
+  fields:
+    mode:
+      name: Night Mode
+      description: Night mode power level
+      required: true
+      selector:
+        select:
+          options:
+            - "30_percent"
+            - "15_percent"
+            - "standby"
+
+update_automation:
+  name: Update Solar Automation
+  description: Trigger an update of the solar power automation system
+  target:
+    entity:
+      integration: solarminer
+
+set_temperature_protection:
+  name: Set Temperature Protection
+  description: Set the temperature threshold for automatic power reduction
+  target:
+    entity:
+      integration: solarminer
+  fields:
+    temperature_celsius:
+      name: Temperature (°C)
+      description: Temperature threshold in Celsius
+      required: true
+      selector:
+        number:
+          min: 60
+          max: 90
+          step: 1
+          unit_of_measurement: "°C"
+
+reboot_miner:
+  name: Reboot Miner
+  description: Reboot the miner (use with caution)
+  target:
+    entity:
+      integration: solarminer

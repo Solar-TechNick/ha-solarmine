@@ -1,0 +1,204 @@
+# Solar Miner Dashboard - Antminer S19j Pro+ (192.168.1.210)
+# Copy this to your Home Assistant dashboard
+
+title: "Solar Miner S19j Pro+"
+path: solar-miner-s19j
+icon: mdi:pickaxe
+
+cards:
+  # Header with key metrics
+  - type: horizontal-stack
+    cards:
+      - type: entity
+        entity: sensor.solar_miner_192_168_1_210_hashrate
+        name: "Hashrate"
+        icon: mdi:pickaxe
+        state_color: true
+      - type: entity
+        entity: sensor.solar_miner_192_168_1_210_power
+        name: "Power"
+        icon: mdi:flash
+        state_color: true
+      - type: entity
+        entity: sensor.solar_miner_192_168_1_210_temperature
+        name: "Temperature"
+        icon: mdi:thermometer
+        state_color: true
+      - type: entity
+        entity: sensor.solar_miner_192_168_1_210_efficiency
+        name: "Efficiency"
+        icon: mdi:lightning-bolt
+        state_color: true
+
+  # Solar Power Section
+  - type: vertical-stack
+    title: "Solar Power Control"
+    cards:
+      - type: horizontal-stack
+        cards:
+          - type: entity
+            entity: number.solar_miner_192_168_1_210_solar_power
+            name: "Solar Power Available"
+            icon: mdi:solar-power
+          - type: gauge
+            entity: sensor.solar_miner_192_168_1_210_solar_efficiency
+            name: "Solar Efficiency"
+            min: 0
+            max: 100
+            severity:
+              green: 80
+              yellow: 60
+              red: 0
+      - type: entities
+        title: "Solar Controls"
+        entities:
+          - button.solar_miner_192_168_1_210_update_solar_power
+          - select.solar_miner_192_168_1_210_solar_mode
+          - switch.solar_miner_192_168_1_210_solar_mode
+
+  # Mining Controls
+  - type: entities
+    title: "Mining Controls"
+    entities:
+      - switch.solar_miner_192_168_1_210_mining
+      - button.solar_miner_192_168_1_210_pause
+      - button.solar_miner_192_168_1_210_resume
+      - type: divider
+      - button.solar_miner_192_168_1_210_solar_max
+      - button.solar_miner_192_168_1_210_eco_mode
+      - button.solar_miner_192_168_1_210_standby
+
+  # Power Profiles
+  - type: entities
+    title: "Power Profiles"
+    entities:
+      - select.solar_miner_192_168_1_210_power_profile
+      - type: divider
+      - button.solar_miner_192_168_1_210_max_power
+      - button.solar_miner_192_168_1_210_balanced
+      - button.solar_miner_192_168_1_210_ultra_eco
+
+  # Hashboard Control
+  - type: entities
+    title: "Hashboard Control"
+    entities:
+      - switch.solar_miner_192_168_1_210_board_0
+      - sensor.solar_miner_192_168_1_210_board_0
+      - switch.solar_miner_192_168_1_210_board_1
+      - sensor.solar_miner_192_168_1_210_board_1
+      - switch.solar_miner_192_168_1_210_board_2
+      - sensor.solar_miner_192_168_1_210_board_2
+
+  # Night Mode & Automation
+  - type: vertical-stack
+    title: "Night Mode & Automation"
+    cards:
+      - type: entities
+        entities:
+          - select.solar_miner_192_168_1_210_night_mode
+          - button.solar_miner_192_168_1_210_night_mode_30
+          - button.solar_miner_192_168_1_210_night_mode_15
+          - button.solar_miner_192_168_1_210_peak_solar
+      - type: entities
+        title: "Automation Settings"
+        entities:
+          - switch.solar_miner_192_168_1_210_auto_standby
+          - number.solar_miner_192_168_1_210_minimum_power
+          - number.solar_miner_192_168_1_210_automation_interval
+
+  # Advanced Controls
+  - type: entities
+    title: "Advanced Controls"
+    entities:
+      - number.solar_miner_192_168_1_210_power_limit
+      - number.solar_miner_192_168_1_210_performance
+      - number.solar_miner_192_168_1_210_temp_protection
+      - type: divider
+      - select.solar_miner_192_168_1_210_pool
+      - button.solar_miner_192_168_1_210_reboot
+
+  # Performance Charts
+  - type: history-graph
+    title: "Hashrate History"
+    entities:
+      - sensor.solar_miner_192_168_1_210_hashrate
+      - sensor.solar_miner_192_168_1_210_board_0
+      - sensor.solar_miner_192_168_1_210_board_1
+      - sensor.solar_miner_192_168_1_210_board_2
+    hours_to_show: 24
+    refresh_interval: 60
+
+  - type: history-graph
+    title: "Power & Temperature"
+    entities:
+      - sensor.solar_miner_192_168_1_210_power
+      - sensor.solar_miner_192_168_1_210_temperature
+      - sensor.solar_miner_192_168_1_210_solar_power
+    hours_to_show: 24
+    refresh_interval: 60
+
+  # Status Information
+  - type: entities
+    title: "Status Information"
+    entities:
+      - sensor.solar_miner_192_168_1_210_status
+      - sensor.solar_miner_192_168_1_210_uptime
+      - sensor.solar_miner_192_168_1_210_pool
+      - sensor.solar_miner_192_168_1_210_fan_speed
+
+  # Sun Curve Visualization (Custom card if available)
+  - type: markdown
+    content: |
+      ## Sun Curve Mode
+      When enabled, the miner automatically adjusts power based on a simulated sun curve:
+      
+      - **6 AM - 8 AM**: Gradual startup (10-20% power)
+      - **9 AM - 11 AM**: Morning ramp-up (40-80% power)
+      - **12 PM - 1 PM**: Peak solar (100% power)
+      - **2 PM - 5 PM**: Afternoon decline (90-50% power)
+      - **6 PM - 8 PM**: Evening shutdown (30-10% power)
+      - **9 PM - 5 AM**: Night mode (0% power)
+      
+      Use **Manual Mode** to override with custom solar power values.
+
+  # Quick Actions
+  - type: horizontal-stack
+    title: "Quick Actions"
+    cards:
+      - type: button
+        tap_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.solar_miner_192_168_1_210_solar_max
+        entity: button.solar_miner_192_168_1_210_solar_max
+        name: "Solar Max"
+        icon: mdi:solar-power-variant
+      - type: button
+        tap_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.solar_miner_192_168_1_210_eco_mode
+        entity: button.solar_miner_192_168_1_210_eco_mode
+        name: "Eco Mode"
+        icon: mdi:leaf
+      - type: button
+        tap_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.solar_miner_192_168_1_210_standby
+        entity: button.solar_miner_192_168_1_210_standby
+        name: "Standby"
+        icon: mdi:power-standby
+      - type: button
+        tap_action:
+          action: call-service
+          service: solarminer.emergency_stop
+          service_data:
+            entity_id: sensor.solar_miner_192_168_1_210_hashrate
+        name: "Emergency Stop"
+        icon: mdi:stop-circle
+        hold_action:
+          action: none

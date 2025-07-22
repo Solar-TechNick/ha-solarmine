@@ -1,0 +1,251 @@
+# Solar Miner Dashboard - Antminer S21+ (192.168.1.212)
+# Copy this to your Home Assistant dashboard
+
+title: "Solar Miner S21+"
+path: solar-miner-s21
+icon: mdi:pickaxe
+
+cards:
+  # Header with key metrics
+  - type: horizontal-stack
+    cards:
+      - type: entity
+        entity: sensor.solar_miner_192_168_1_212_hashrate
+        name: "Hashrate"
+        icon: mdi:pickaxe
+        state_color: true
+      - type: entity
+        entity: sensor.solar_miner_192_168_1_212_power
+        name: "Power"
+        icon: mdi:flash
+        state_color: true
+      - type: entity
+        entity: sensor.solar_miner_192_168_1_212_temperature
+        name: "Temperature"
+        icon: mdi:thermometer
+        state_color: true
+      - type: entity
+        entity: sensor.solar_miner_192_168_1_212_efficiency
+        name: "Efficiency"
+        icon: mdi:lightning-bolt
+        state_color: true
+
+  # Solar Power Section
+  - type: vertical-stack
+    title: "Solar Power Control"
+    cards:
+      - type: horizontal-stack
+        cards:
+          - type: entity
+            entity: number.solar_miner_192_168_1_212_solar_power
+            name: "Solar Power Available"
+            icon: mdi:solar-power
+          - type: gauge
+            entity: sensor.solar_miner_192_168_1_212_solar_efficiency
+            name: "Solar Efficiency"
+            min: 0
+            max: 100
+            severity:
+              green: 80
+              yellow: 60
+              red: 0
+      - type: entities
+        title: "Solar Controls"
+        entities:
+          - button.solar_miner_192_168_1_212_update_solar_power
+          - select.solar_miner_192_168_1_212_solar_mode
+          - switch.solar_miner_192_168_1_212_solar_mode
+
+  # Mining Controls
+  - type: entities
+    title: "Mining Controls"
+    entities:
+      - switch.solar_miner_192_168_1_212_mining
+      - button.solar_miner_192_168_1_212_pause
+      - button.solar_miner_192_168_1_212_resume
+      - type: divider
+      - button.solar_miner_192_168_1_212_solar_max
+      - button.solar_miner_192_168_1_212_eco_mode
+      - button.solar_miner_192_168_1_212_standby
+
+  # Power Profiles
+  - type: entities
+    title: "Power Profiles"
+    entities:
+      - select.solar_miner_192_168_1_212_power_profile
+      - type: divider
+      - button.solar_miner_192_168_1_212_max_power
+      - button.solar_miner_192_168_1_212_balanced
+      - button.solar_miner_192_168_1_212_ultra_eco
+
+  # Hashboard Control
+  - type: entities
+    title: "Hashboard Control"
+    entities:
+      - switch.solar_miner_192_168_1_212_board_0
+      - sensor.solar_miner_192_168_1_212_board_0
+      - switch.solar_miner_192_168_1_212_board_1
+      - sensor.solar_miner_192_168_1_212_board_1
+      - switch.solar_miner_192_168_1_212_board_2
+      - sensor.solar_miner_192_168_1_212_board_2
+
+  # Night Mode & Automation
+  - type: vertical-stack
+    title: "Night Mode & Automation"
+    cards:
+      - type: entities
+        entities:
+          - select.solar_miner_192_168_1_212_night_mode
+          - button.solar_miner_192_168_1_212_night_mode_30
+          - button.solar_miner_192_168_1_212_night_mode_15
+          - button.solar_miner_192_168_1_212_peak_solar
+      - type: entities
+        title: "Automation Settings"
+        entities:
+          - switch.solar_miner_192_168_1_212_auto_standby
+          - number.solar_miner_192_168_1_212_minimum_power
+          - number.solar_miner_192_168_1_212_automation_interval
+
+  # Advanced Controls
+  - type: entities
+    title: "Advanced Controls"
+    entities:
+      - number.solar_miner_192_168_1_212_power_limit
+      - number.solar_miner_192_168_1_212_performance
+      - number.solar_miner_192_168_1_212_temp_protection
+      - type: divider
+      - select.solar_miner_192_168_1_212_pool
+      - button.solar_miner_192_168_1_212_reboot
+
+  # Performance Charts
+  - type: history-graph
+    title: "Hashrate History"
+    entities:
+      - sensor.solar_miner_192_168_1_212_hashrate
+      - sensor.solar_miner_192_168_1_212_board_0
+      - sensor.solar_miner_192_168_1_212_board_1
+      - sensor.solar_miner_192_168_1_212_board_2
+    hours_to_show: 24
+    refresh_interval: 60
+
+  - type: history-graph
+    title: "Power & Temperature"
+    entities:
+      - sensor.solar_miner_192_168_1_212_power
+      - sensor.solar_miner_192_168_1_212_temperature
+      - sensor.solar_miner_192_168_1_212_solar_power
+    hours_to_show: 24
+    refresh_interval: 60
+
+  # Status Information
+  - type: entities
+    title: "Status Information"
+    entities:
+      - sensor.solar_miner_192_168_1_212_status
+      - sensor.solar_miner_192_168_1_212_uptime
+      - sensor.solar_miner_192_168_1_212_pool
+      - sensor.solar_miner_192_168_1_212_fan_speed
+
+  # S21+ Specific Features
+  - type: markdown
+    content: |
+      ## S21+ Enhanced Features
+      The S21+ offers improved efficiency and performance:
+      
+      - **Higher Hashrate**: ~200 TH/s vs S19j Pro+ ~104 TH/s
+      - **Better Efficiency**: ~17.5 J/TH vs S19j Pro+ ~30 J/TH
+      - **Advanced Cooling**: Improved thermal management
+      - **Enhanced Stability**: Better hashboard reliability
+      
+      **Recommended Settings for S21+:**
+      - Solar Max: 5000W (vs 4200W for S19j Pro+)
+      - Eco Mode: 2000W (vs 1500W for S19j Pro+)
+      - Peak Solar: 6000W (120% mode)
+
+  # Comparison with S19j Pro+
+  - type: horizontal-stack
+    title: "Miner Comparison"
+    cards:
+      - type: markdown
+        content: |
+          ### S21+ Performance
+          - **Hashrate**: {{states('sensor.solar_miner_192_168_1_212_hashrate')}} TH/s
+          - **Power**: {{states('sensor.solar_miner_192_168_1_212_power')}} W
+          - **Efficiency**: {{states('sensor.solar_miner_192_168_1_212_efficiency')}} J/TH
+          - **Temperature**: {{states('sensor.solar_miner_192_168_1_212_temperature')}}°C
+      - type: markdown
+        content: |
+          ### S19j Pro+ Performance
+          - **Hashrate**: {{states('sensor.solar_miner_192_168_1_210_hashrate')}} TH/s
+          - **Power**: {{states('sensor.solar_miner_192_168_1_210_power')}} W
+          - **Efficiency**: {{states('sensor.solar_miner_192_168_1_210_efficiency')}} J/TH
+          - **Temperature**: {{states('sensor.solar_miner_192_168_1_210_temperature')}}°C
+
+  # Quick Actions
+  - type: horizontal-stack
+    title: "Quick Actions"
+    cards:
+      - type: button
+        tap_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.solar_miner_192_168_1_212_solar_max
+        entity: button.solar_miner_192_168_1_212_solar_max
+        name: "Solar Max"
+        icon: mdi:solar-power-variant
+      - type: button
+        tap_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.solar_miner_192_168_1_212_eco_mode
+        entity: button.solar_miner_192_168_1_212_eco_mode
+        name: "Eco Mode"
+        icon: mdi:leaf
+      - type: button
+        tap_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.solar_miner_192_168_1_212_standby
+        entity: button.solar_miner_192_168_1_212_standby
+        name: "Standby"
+        icon: mdi:power-standby
+      - type: button
+        tap_action:
+          action: call-service
+          service: solarminer.emergency_stop
+          service_data:
+            entity_id: sensor.solar_miner_192_168_1_212_hashrate
+        name: "Emergency Stop"
+        icon: mdi:stop-circle
+        hold_action:
+          action: none
+
+  # Combined Solar Overview
+  - type: vertical-stack
+    title: "Combined Solar Mining"
+    cards:
+      - type: markdown
+        content: |
+          ### Total Solar Mining Stats
+          - **Combined Hashrate**: {{(states('sensor.solar_miner_192_168_1_210_hashrate')|float + states('sensor.solar_miner_192_168_1_212_hashrate')|float)|round(1)}} TH/s
+          - **Total Power**: {{(states('sensor.solar_miner_192_168_1_210_power')|float + states('sensor.solar_miner_192_168_1_212_power')|float)|round(0)}} W
+          - **Average Efficiency**: {{((states('sensor.solar_miner_192_168_1_210_efficiency')|float + states('sensor.solar_miner_192_168_1_212_efficiency')|float) / 2)|round(1)}} J/TH
+      - type: horizontal-stack
+        cards:
+          - type: button
+            tap_action:
+              action: call-service
+              service: script.solar_mining_sync_both
+            name: "Sync Both Miners"
+            icon: mdi:sync
+          - type: button
+            tap_action:
+              action: call-service
+              service: script.emergency_stop_all
+            name: "Emergency Stop All"
+            icon: mdi:stop-circle-outline
+            hold_action:
+              action: none
