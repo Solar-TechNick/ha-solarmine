@@ -1,0 +1,216 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Solar Miner Setup",
+        "description": "Enter the connection details for your Antminer running LuxOS",
+        "data": {
+          "host": "IP Address",
+          "port": "Port",
+          "username": "Username (Optional)",
+          "password": "Password (Optional)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the miner",
+      "invalid_auth": "Invalid authentication credentials",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "Miner is already configured"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "hashrate": {
+        "name": "Hashrate"
+      },
+      "power": {
+        "name": "Power Consumption"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "fan_speed": {
+        "name": "Fan Speed"
+      },
+      "efficiency": {
+        "name": "Efficiency"
+      },
+      "board_0": {
+        "name": "Board 0 Hashrate"
+      },
+      "board_1": {
+        "name": "Board 1 Hashrate"
+      },
+      "board_2": {
+        "name": "Board 2 Hashrate"
+      },
+      "pool": {
+        "name": "Active Pool"
+      },
+      "solar_power": {
+        "name": "Solar Power Available"
+      },
+      "solar_efficiency": {
+        "name": "Solar Efficiency"
+      },
+      "status": {
+        "name": "Status"
+      },
+      "uptime": {
+        "name": "Uptime"
+      }
+    },
+    "switch": {
+      "board_0": {
+        "name": "Board 0"
+      },
+      "board_1": {
+        "name": "Board 1"
+      },
+      "board_2": {
+        "name": "Board 2"
+      },
+      "mining": {
+        "name": "Mining"
+      },
+      "solar_mode": {
+        "name": "Solar Mode"
+      },
+      "auto_standby": {
+        "name": "Auto Standby"
+      }
+    },
+    "button": {
+      "pause": {
+        "name": "Pause Mining"
+      },
+      "resume": {
+        "name": "Resume Mining"
+      },
+      "solar_max": {
+        "name": "Solar Max"
+      },
+      "eco_mode": {
+        "name": "Eco Mode"
+      },
+      "max_power": {
+        "name": "Max Power Profile"
+      },
+      "balanced": {
+        "name": "Balanced Profile"
+      },
+      "ultra_eco": {
+        "name": "Ultra Eco Profile"
+      },
+      "update_solar_power": {
+        "name": "Update Solar Power"
+      },
+      "night_mode_30": {
+        "name": "Night Mode 30%"
+      },
+      "night_mode_15": {
+        "name": "Night Mode 15%"
+      },
+      "standby": {
+        "name": "Standby Mode"
+      },
+      "peak_solar": {
+        "name": "Peak Solar Mode"
+      },
+      "reboot": {
+        "name": "Reboot Miner"
+      }
+    },
+    "number": {
+      "solar_power": {
+        "name": "Solar Power Input"
+      },
+      "power_limit": {
+        "name": "Power Limit"
+      },
+      "minimum_power": {
+        "name": "Minimum Power for Auto Standby"
+      },
+      "temp_protection": {
+        "name": "Temperature Protection Threshold"
+      },
+      "performance": {
+        "name": "Performance Level"
+      },
+      "automation_interval": {
+        "name": "Automation Interval"
+      }
+    },
+    "select": {
+      "solar_mode": {
+        "name": "Solar Mode",
+        "state": {
+          "manual": "Manual",
+          "sun_curve": "Sun Curve"
+        }
+      },
+      "night_mode": {
+        "name": "Night Mode",
+        "state": {
+          "30_percent": "Night Mode (30%)",
+          "15_percent": "Night Mode (15%)",
+          "standby": "Standby Mode (0%)"
+        }
+      },
+      "power_profile": {
+        "name": "Power Profile",
+        "state": {
+          "max_power": "Max Power",
+          "balanced": "Balanced",
+          "ultra_eco": "Ultra Eco"
+        }
+      },
+      "pool": {
+        "name": "Mining Pool"
+      }
+    }
+  },
+  "services": {
+    "set_solar_power": {
+      "name": "Set Solar Power",
+      "description": "Set the available solar power in watts",
+      "fields": {
+        "power_watts": {
+          "name": "Power (Watts)",
+          "description": "Available solar power in watts"
+        }
+      }
+    },
+    "apply_sun_curve": {
+      "name": "Apply Sun Curve",
+      "description": "Apply automatic sun curve power adjustment",
+      "fields": {
+        "enable": {
+          "name": "Enable",
+          "description": "Enable or disable sun curve mode"
+        }
+      }
+    },
+    "set_hashboard_power": {
+      "name": "Set Hashboard Power",
+      "description": "Control individual hashboard power",
+      "fields": {
+        "board": {
+          "name": "Board Number",
+          "description": "Hashboard number (0, 1, or 2)"
+        },
+        "enabled": {
+          "name": "Enabled",
+          "description": "Enable or disable the hashboard"
+        }
+      }
+    },
+    "emergency_stop": {
+      "name": "Emergency Stop",
+      "description": "Immediately stop all mining operations"
+    }
+  }
+}
