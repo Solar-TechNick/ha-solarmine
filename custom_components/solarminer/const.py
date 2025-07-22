@@ -40,14 +40,21 @@ MINING_PRESETS = {
 TEMP_PROTECTION_THRESHOLD = 75.0
 AUTO_REFRESH_INTERVAL = 30
 
-# LuxOS API endpoints
-LUXOS_ENDPOINTS = {
-    "summary": "/cgi-bin/luci/admin/miner/api/summary",
-    "pools": "/cgi-bin/luci/admin/miner/api/pools",
-    "devs": "/cgi-bin/luci/admin/miner/api/devs",
-    "frequencyset": "/cgi-bin/luci/admin/miner/api/frequencyset",
-    "voltageset": "/cgi-bin/luci/admin/miner/api/voltageset",
-    "profileset": "/cgi-bin/luci/admin/miner/api/profileset",
-    "tempctrlset": "/cgi-bin/luci/admin/miner/api/tempctrlset",
-    "reboot": "/cgi-bin/luci/admin/miner/api/reboot",
+# LuxOS API configuration
+LUXOS_TCP_PORT = 4028  # Primary LuxOS TCP API port (recommended)
+LUXOS_HTTP_PORT = 8080  # LuxOS HTTP API port (alternative)
+
+# LuxOS API commands (used with both TCP and HTTP APIs)
+LUXOS_COMMANDS = {
+    "summary": "summary",
+    "pools": "pools", 
+    "devs": "devs",
+    "stats": "stats",
+    "config": "config",
+    "version": "version",
+    "devdetails": "devdetails",
+    # Configuration commands
+    "profileset": "profileset",
+    "atmset": "atmset",
+    "reboot": "reboot",
 }
