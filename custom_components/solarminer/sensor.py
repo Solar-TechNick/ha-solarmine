@@ -87,13 +87,17 @@ class SolarMinerSensorEntity(CoordinatorEntity, SensorEntity):
     def _get_miner_model(self) -> str:
         """Get miner model from data."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            return self.coordinator.data["summary"].get("Type", "Unknown")
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
+                return summary_data["SUMMARY"][0].get("Type", "Unknown")
         return "Unknown"
     
     def _get_firmware_version(self) -> str:
         """Get firmware version from data."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            return self.coordinator.data["summary"].get("Version", "Unknown")
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
+                return summary_data["SUMMARY"][0].get("Version", "Unknown")
         return "Unknown"
 
 
@@ -199,8 +203,8 @@ class SolarMinerTemperatureSensor(SolarMinerSensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the temperature."""
-        if self.coordinator.data and "devs" in self.coordinator.data:
-            devs_data = self.coordinator.data["devs"]
+        if self.coordinator.data and "devices" in self.coordinator.data:
+            devs_data = self.coordinator.data["devices"]
             # LuxOS returns data in DEVS array
             if "DEVS" in devs_data:
                 temps = []
@@ -293,13 +297,18 @@ class SolarMinerEfficiencySensor(SolarMinerSensorEntity):
             if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
                 summary = summary_data["SUMMARY"][0]
                 try:
-                    # Try different power field names
+                    # Try different power field names used by LuxOS
                     power = 0
-                    for power_field in ["Power", "Power Consumption", "Watts"]:
+                    power_fields = [
+                        "Power", "Power Consumption", "Watts", "Power Usage",
+                        "Utility", "Work Utility"
+                    ]
+                    for power_field in power_fields:
                         power_str = summary.get(power_field, "0")
                         try:
-                            power = float(power_str)
-                            if power > 0:
+                            power_val = float(power_str)
+                            if power_val > 0:
+                                power = power_val
                                 break
                         except (ValueError, TypeError):
                             continue
@@ -308,8 +317,13 @@ class SolarMinerEfficiencySensor(SolarMinerSensorEntity):
                     hashrate_ghs = float(summary.get("GHS 5s", "0"))
                     hashrate_ths = hashrate_ghs / 1000
                     
+                    # If no direct power reading, estimate from hashrate (S21+ typically 17.5 J/TH)
+                    if power == 0 and hashrate_ths > 0:
+                        power = hashrate_ths * 17.5  # S21+ efficiency estimate
+                    
                     if hashrate_ths > 0 and power > 0:
-                        return round(power / hashrate_ths, 2)  # W/TH (J/TH = W/TH for continuous operation)
+                        efficiency = power / hashrate_ths
+                        return round(efficiency, 1)  # J/TH
                 except (ValueError, TypeError, ZeroDivisionError):
                     pass
         return None
@@ -336,8 +350,8 @@ class SolarMinerBoardSensor(SolarMinerSensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the board hashrate."""
-        if self.coordinator.data and "devs" in self.coordinator.data:
-            devs_data = self.coordinator.data["devs"]
+        if self.coordinator.data and "devices" in self.coordinator.data:
+            devs_data = self.coordinator.data["devices"]
             if "DEVS" in devs_data:
                 devs = devs_data["DEVS"]
                 if self._board_id < len(devs):
@@ -385,8 +399,8 @@ class SolarMinerBoardSensor(SolarMinerSensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return additional attributes."""
-        if self.coordinator.data and "devs" in self.coordinator.data:
-            devs_data = self.coordinator.data["devs"]
+        if self.coordinator.data and "devices" in self.coordinator.data:
+            devs_data = self.coordinator.data["devices"]
             if "DEVS" in devs_data:
                 devs = devs_data["DEVS"]
                 if self._board_id < len(devs):
@@ -495,16 +509,46 @@ class SolarMinerSolarEfficiencySensor(SolarMinerSensorEntity):
     def native_value(self) -> float | None:
         """Return the solar efficiency percentage."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            try:
-                power_consumption = float(self.coordinator.data["summary"].get("Power", "0"))
-                solar_power = getattr(self, "_solar_power", 0)
-                
-                if solar_power > 0:
-                    efficiency = min(100, (power_consumption / solar_power) * 100)
-                    return round(efficiency, 1)
-            except (ValueError, TypeError, ZeroDivisionError):
-                pass
-        return None
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
+                summary_item = summary_data["SUMMARY"][0]
+                try:
+                    # Get power consumption (use estimation if not available)
+                    power_consumption = 0
+                    power_fields = ["Power", "Power Consumption", "Watts", "Power Usage"]
+                    for power_field in power_fields:
+                        power_str = summary_item.get(power_field, "0")
+                        try:
+                            power_consumption = float(power_str)
+                            if power_consumption > 0:
+                                break
+                        except (ValueError, TypeError):
+                            continue
+                    
+                    # If no direct power, estimate from hashrate
+                    if power_consumption == 0:
+                        hashrate_str = summary_item.get("GHS 5s", "0")
+                        try:
+                            hashrate_ghs = float(hashrate_str)
+                            hashrate_ths = hashrate_ghs / 1000
+                            power_consumption = hashrate_ths * 17.5  # S21+ efficiency
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    # Get solar power from number input (this would be set by the solar power number entity)
+                    # For now, return 0% since we don't have solar power input integration yet
+                    solar_power = 0  # This would come from the solar power input entity
+                    
+                    if solar_power > 0 and power_consumption > 0:
+                        efficiency = min(100, (power_consumption / solar_power) * 100)
+                        return round(efficiency, 1)
+                    else:
+                        # If no solar power set, show 0% (not Unknown)
+                        return 0.0
+                        
+                except (ValueError, TypeError, ZeroDivisionError):
+                    pass
+        return 0.0
 
 
 class SolarMinerStatusSensor(SolarMinerSensorEntity):

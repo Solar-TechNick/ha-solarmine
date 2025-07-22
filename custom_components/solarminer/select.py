@@ -66,13 +66,17 @@ class SolarMinerSelectEntity(CoordinatorEntity, SelectEntity):
     def _get_miner_model(self) -> str:
         """Get miner model from data."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            return self.coordinator.data["summary"].get("Type", "Unknown")
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
+                return summary_data["SUMMARY"][0].get("Type", "Unknown")
         return "Unknown"
     
     def _get_firmware_version(self) -> str:
         """Get firmware version from data."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            return self.coordinator.data["summary"].get("Version", "Unknown")
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
+                return summary_data["SUMMARY"][0].get("Version", "Unknown")
         return "Unknown"
 
 

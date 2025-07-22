@@ -75,13 +75,17 @@ class SolarMinerButtonEntity(CoordinatorEntity, ButtonEntity):
     def _get_miner_model(self) -> str:
         """Get miner model from data."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            return self.coordinator.data["summary"].get("Type", "Unknown")
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
+                return summary_data["SUMMARY"][0].get("Type", "Unknown")
         return "Unknown"
     
     def _get_firmware_version(self) -> str:
         """Get firmware version from data."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            return self.coordinator.data["summary"].get("Version", "Unknown")
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
+                return summary_data["SUMMARY"][0].get("Version", "Unknown")
         return "Unknown"
 
 
@@ -228,11 +232,12 @@ class SolarMinerMaxPowerButton(SolarMinerButtonEntity):
         """Handle the button press."""
         try:
             profile = POWER_PROFILES["max_power"]
-            success = await self._client.set_profile(f"overclock_{profile['overclock']}")
+            # LuxOS expects format: "delta,2" not "overclock_2"
+            success = await self._client.set_profile(f"delta,{profile['overclock']}")
             if success:
                 await self.coordinator.async_request_refresh()
                 _LOGGER.info(
-                    "Max Power profile (+%s overclock) applied for miner %s",
+                    "Max Power profile (delta %s) applied for miner %s",
                     profile['overclock'],
                     self._config_entry.data['host']
                 )
@@ -261,11 +266,13 @@ class SolarMinerBalancedButton(SolarMinerButtonEntity):
         """Handle the button press."""
         try:
             profile = POWER_PROFILES["balanced"]
-            success = await self._client.set_profile("default")
+            # LuxOS expects format: "delta,0" for balanced
+            success = await self._client.set_profile(f"delta,{profile['overclock']}")
             if success:
                 await self.coordinator.async_request_refresh()
                 _LOGGER.info(
-                    "Balanced profile (default) applied for miner %s",
+                    "Balanced profile (delta %s) applied for miner %s",
+                    profile['overclock'],
                     self._config_entry.data['host']
                 )
             else:
@@ -293,11 +300,12 @@ class SolarMinerUltraEcoButton(SolarMinerButtonEntity):
         """Handle the button press."""
         try:
             profile = POWER_PROFILES["ultra_eco"]
-            success = await self._client.set_profile(f"underclock_{abs(profile['overclock'])}")
+            # LuxOS expects format: "delta,-2" for ultra eco
+            success = await self._client.set_profile(f"delta,{profile['overclock']}")
             if success:
                 await self.coordinator.async_request_refresh()
                 _LOGGER.info(
-                    "Ultra Eco profile (%s underclock) applied for miner %s",
+                    "Ultra Eco profile (delta %s) applied for miner %s",
                     profile['overclock'],
                     self._config_entry.data['host']
                 )

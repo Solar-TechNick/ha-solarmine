@@ -33,6 +33,7 @@ async def async_setup_entry(
         
         # Mining control switches
         SolarMinerMiningSwitch(coordinator, client, config_entry),
+        SolarMinerPauseMiningSwitch(coordinator, client, config_entry),
         SolarMinerSolarModeSwitch(coordinator, client, config_entry),
         SolarMinerAutoStandbySwitch(coordinator, client, config_entry),
     ]
@@ -53,6 +54,9 @@ class SolarMinerSwitchEntity(CoordinatorEntity, SwitchEntity):
         super().__init__(coordinator)
         self._client = client
         self._config_entry = config_entry
+        # State persistence for switches
+        self._stored_state = None
+        self._last_known_state = None
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
             "name": f"Solar Miner {config_entry.data['host']}",
@@ -64,13 +68,17 @@ class SolarMinerSwitchEntity(CoordinatorEntity, SwitchEntity):
     def _get_miner_model(self) -> str:
         """Get miner model from data."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            return self.coordinator.data["summary"].get("Type", "Unknown")
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
+                return summary_data["SUMMARY"][0].get("Type", "Unknown")
         return "Unknown"
     
     def _get_firmware_version(self) -> str:
         """Get firmware version from data."""
         if self.coordinator.data and "summary" in self.coordinator.data:
-            return self.coordinator.data["summary"].get("Version", "Unknown")
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
+                return summary_data["SUMMARY"][0].get("Version", "Unknown")
         return "Unknown"
 
 
@@ -94,49 +102,82 @@ class SolarMinerHashboardSwitch(SolarMinerSwitchEntity):
     @property
     def is_on(self) -> bool | None:
         """Return True if the hashboard is enabled."""
-        if self.coordinator.data and "devs" in self.coordinator.data:
-            devs = self.coordinator.data["devs"].get("DEVS", [])
-            if self._board_id < len(devs):
-                status = devs[self._board_id].get("Status", "")
-                return status.lower() in ["alive", "active", "enabled"]
+        if self.coordinator.data and "devices" in self.coordinator.data:
+            devs_data = self.coordinator.data["devices"]
+            if "DEVS" in devs_data:
+                devs = devs_data["DEVS"]
+                if self._board_id < len(devs):
+                    dev = devs[self._board_id]
+                    # Check multiple status indicators
+                    status = dev.get("Status", "")
+                    enabled = dev.get("Enabled", "")
+                    
+                    # Check for various "enabled" indicators
+                    if status.lower() in ["alive", "active", "enabled", "mining"]:
+                        return True
+                    elif enabled and str(enabled).lower() in ["true", "yes", "1", "enabled"]:
+                        return True
+                    elif status.lower() in ["dead", "disabled", "inactive"]:
+                        return False
+                    
+                    # Fallback: check if board has hashrate (indicates it's working)
+                    hashrate_fields = ["GHS 5s", "GHS av", "MHS 5s", "Hashrate"]
+                    for field in hashrate_fields:
+                        hashrate_str = dev.get(field, "0")
+                        try:
+                            hashrate = float(hashrate_str)
+                            return hashrate > 0
+                        except (ValueError, TypeError):
+                            continue
         return None
     
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn on the hashboard."""
+        """Turn on the hashboard (LuxOS doesn't support individual board control, use power profiles)."""
         try:
-            success = await self._client.enable_board(self._board_id)
+            # LuxOS doesn't support individual hashboard control
+            # Instead, use balanced profile to ensure mining is active
+            success = await self._client.set_balanced_mode()
             if success:
                 await self.coordinator.async_request_refresh()
+                _LOGGER.info("Board %s control: Set balanced mode (LuxOS limitation)", self._board_id)
             else:
-                _LOGGER.error("Failed to enable board %s", self._board_id)
+                _LOGGER.error("Failed to enable board %s via profile change", self._board_id)
         except Exception as err:
             _LOGGER.error("Error enabling board %s: %s", self._board_id, err)
     
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn off the hashboard."""
+        """Turn off the hashboard (LuxOS doesn't support individual board control, use power profiles)."""
         try:
-            success = await self._client.disable_board(self._board_id)
+            # LuxOS doesn't support individual hashboard control
+            # Instead, use eco mode to reduce power
+            success = await self._client.set_eco_mode()
             if success:
                 await self.coordinator.async_request_refresh()
+                _LOGGER.info("Board %s control: Set eco mode (LuxOS limitation)", self._board_id)
             else:
-                _LOGGER.error("Failed to disable board %s", self._board_id)
+                _LOGGER.error("Failed to disable board %s via profile change", self._board_id)
         except Exception as err:
             _LOGGER.error("Error disabling board %s: %s", self._board_id, err)
     
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return additional attributes."""
-        if self.coordinator.data and "devs" in self.coordinator.data:
-            devs = self.coordinator.data["devs"].get("DEVS", [])
-            if self._board_id < len(devs):
-                dev = devs[self._board_id]
-                return {
-                    "temperature": dev.get("Temperature"),
-                    "frequency": dev.get("Frequency"),
-                    "voltage": dev.get("Voltage"),
-                    "hashrate_ghs": dev.get("GHS 5s"),
-                    "chip_count": dev.get("Chip Count"),
-                }
+        if self.coordinator.data and "devices" in self.coordinator.data:
+            devs_data = self.coordinator.data["devices"]
+            if "DEVS" in devs_data:
+                devs = devs_data["DEVS"]
+                if self._board_id < len(devs):
+                    dev = devs[self._board_id]
+                    return {
+                        "temperature": dev.get("Temperature"),
+                        "frequency": dev.get("Frequency"),
+                        "voltage": dev.get("Voltage"),
+                        "hashrate_ghs": dev.get("GHS 5s"),
+                        "chip_count": dev.get("Chip Count"),
+                        "device_elapsed": dev.get("Device Elapsed"),
+                        "enabled": dev.get("Enabled"),
+                        "luxos_limitation": "Individual board control not supported by LuxOS API",
+                    }
         return {}
 
 
@@ -158,13 +199,31 @@ class SolarMinerMiningSwitch(SolarMinerSwitchEntity):
     @property
     def is_on(self) -> bool | None:
         """Return True if mining is active."""
-        if self.coordinator.data and "devs" in self.coordinator.data:
-            devs = self.coordinator.data["devs"].get("DEVS", [])
-            active_boards = sum(
-                1 for dev in devs
-                if dev.get("Status", "").lower() in ["alive", "active", "enabled"]
-            )
-            return active_boards > 0
+        if self.coordinator.data and "devices" in self.coordinator.data:
+            devs_data = self.coordinator.data["devices"]
+            if "DEVS" in devs_data:
+                devs = devs_data["DEVS"]
+                active_boards = 0
+                for dev in devs:
+                    status = dev.get("Status", "").lower()
+                    enabled = dev.get("Enabled", "")
+                    
+                    # Check if board is active
+                    if (status in ["alive", "active", "enabled", "mining"] or
+                        str(enabled).lower() in ["true", "yes", "1", "enabled"]):
+                        active_boards += 1
+                    else:
+                        # Fallback: check hashrate
+                        for field in ["GHS 5s", "GHS av", "MHS 5s"]:
+                            try:
+                                hashrate = float(dev.get(field, "0"))
+                                if hashrate > 0:
+                                    active_boards += 1
+                                    break
+                            except (ValueError, TypeError):
+                                continue
+                
+                return active_boards > 0
         return None
     
     async def async_turn_on(self, **kwargs: Any) -> None:
@@ -188,6 +247,54 @@ class SolarMinerMiningSwitch(SolarMinerSwitchEntity):
                 _LOGGER.error("Failed to stop mining")
         except Exception as err:
             _LOGGER.error("Error stopping mining: %s", err)
+
+
+class SolarMinerPauseMiningSwitch(SolarMinerSwitchEntity):
+    """Solar Miner pause mining switch."""
+    
+    def __init__(
+        self,
+        coordinator: SolarMinerDataUpdateCoordinator,
+        client,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the switch."""
+        super().__init__(coordinator, client, config_entry)
+        self._attr_name = f"Solar Miner {config_entry.data['host']} Pause Mining"
+        self._attr_unique_id = f"{config_entry.entry_id}_pause_mining_switch"
+        self._attr_icon = "mdi:pause-circle"
+        self._is_paused = False
+    
+    @property
+    def is_on(self) -> bool:
+        """Return True if mining is paused."""
+        return self._is_paused
+    
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Pause mining."""
+        try:
+            success = await self._client.pause_mining()
+            if success:
+                self._is_paused = True
+                await self.coordinator.async_request_refresh()
+                _LOGGER.info("Mining paused for miner %s", self._config_entry.data['host'])
+            else:
+                _LOGGER.error("Failed to pause mining for miner %s", self._config_entry.data['host'])
+        except Exception as err:
+            _LOGGER.error("Error pausing mining: %s", err)
+    
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Resume mining."""
+        try:
+            success = await self._client.resume_mining()
+            if success:
+                self._is_paused = False
+                await self.coordinator.async_request_refresh()
+                _LOGGER.info("Mining resumed for miner %s", self._config_entry.data['host'])
+            else:
+                _LOGGER.error("Failed to resume mining for miner %s", self._config_entry.data['host'])
+        except Exception as err:
+            _LOGGER.error("Error resuming mining: %s", err)
 
 
 class SolarMinerSolarModeSwitch(SolarMinerSwitchEntity):

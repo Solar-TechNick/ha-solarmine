@@ -209,12 +209,12 @@ class SolarMinerAutomation:
     async def _apply_power_profile(self, profile: str) -> None:
         """Apply a power profile."""
         profile_map = {
-            "max_power": "overclock_2",
-            "balanced": "default",
-            "ultra_eco": "underclock_2"
+            "max_power": "delta,2",
+            "balanced": "delta,0", 
+            "ultra_eco": "delta,-2"
         }
         
-        luxos_profile = profile_map.get(profile, "default")
+        luxos_profile = profile_map.get(profile, "delta,0")
         await self.client.set_profile(luxos_profile)
     
     async def _manage_hashboards(self, target_boards: int) -> None:
@@ -247,20 +247,22 @@ class SolarMinerAutomation:
     
     async def _check_temperature_protection(self) -> None:
         """Check and apply temperature protection."""
-        if not self.coordinator.data or "devs" not in self.coordinator.data:
+        if not self.coordinator.data or "devices" not in self.coordinator.data:
             return
         
         try:
             # Get maximum temperature from all boards
             max_temp = 0
-            devs = self.coordinator.data["devs"].get("DEVS", [])
-            for dev in devs:
-                temp_str = dev.get("Temperature", "0")
-                try:
-                    temp = float(temp_str)
-                    max_temp = max(max_temp, temp)
-                except (ValueError, TypeError):
-                    continue
+            devices_data = self.coordinator.data["devices"]
+            if "DEVS" in devices_data:
+                devs = devices_data["DEVS"]
+                for dev in devs:
+                    temp_str = dev.get("Temperature", "0")
+                    try:
+                        temp = float(temp_str)
+                        max_temp = max(max_temp, temp)
+                    except (ValueError, TypeError):
+                        continue
             
             # Apply temperature protection at 75°C
             if max_temp >= 75.0:

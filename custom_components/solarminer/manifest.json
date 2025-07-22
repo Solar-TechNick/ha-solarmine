@@ -1,12 +1,15 @@
 {
   "domain": "solarminer",
   "name": "Solar Miner",
-  "codeowners": ["@solarminer"],
+  "codeowners": ["@Solar-TechNick"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/solarminer/ha-solarminer",
+  "documentation": "https://github.com/Solar-TechNick/ha-solarminer",
   "integration_type": "hub",
   "iot_class": "local_polling",
   "requirements": ["aiohttp>=3.8.0"],
-  "version": "1.0.0"
+  "version": "1.2.0",
+  "issue_tracker": "https://github.com/Solar-TechNick/ha-solarminer/issues",
+  "loggers": ["custom_components.solarminer"],
+  "quality_scale": "silver"
 }

@@ -12,6 +12,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import DOMAIN, DEFAULT_SCAN_INTERVAL
 from .luxos_client import LuxOSClient
+from .automation import SolarMinerAutomation
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,10 +38,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     await coordinator.async_config_entry_first_refresh()
     
+    # Initialize solar automation
+    automation = SolarMinerAutomation(hass, client, coordinator, entry)
+    
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
         "client": client,
         "coordinator": coordinator,
+        "automation": automation,
     }
     
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -51,6 +56,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        # Cleanup automation
+        if DOMAIN in hass.data and entry.entry_id in hass.data[DOMAIN]:
+            automation = hass.data[DOMAIN][entry.entry_id].get("automation")
+            if automation:
+                automation.cleanup()
+        
         hass.data[DOMAIN].pop(entry.entry_id)
     
     return unload_ok
@@ -80,7 +91,7 @@ class SolarMinerDataUpdateCoordinator(DataUpdateCoordinator):
             return {
                 "summary": summary,
                 "pools": pools,
-                "devs": devs,
+                "devices": devs,  # Use 'devices' key for consistency with sensors
                 "stats": stats,
                 "last_update": self.hass.loop.time(),
             }

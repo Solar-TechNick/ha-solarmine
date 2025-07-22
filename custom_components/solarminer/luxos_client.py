@@ -135,23 +135,41 @@ class LuxOSClient:
             raise
     
     async def _api_request(self, command: str, parameter: str = "") -> dict[str, Any]:
-        """Make API request using preferred method (TCP or HTTP)."""
-        try:
-            if self.use_tcp_api:
-                return await self._tcp_request(command, parameter)
-            else:
-                return await self._http_request(command, parameter)
-        except Exception as err:
-            # If preferred method fails, try the alternative
-            _LOGGER.warning(f"Primary API method failed for '{command}', trying alternative: {err}")
+        """Make API request using preferred method (TCP or HTTP) with comprehensive error handling."""
+        max_retries = 2
+        retry_count = 0
+        
+        while retry_count < max_retries:
             try:
                 if self.use_tcp_api:
-                    return await self._http_request(command, parameter)
-                else:
                     return await self._tcp_request(command, parameter)
-            except Exception as fallback_err:
-                _LOGGER.error(f"Both API methods failed for command '{command}': {fallback_err}")
-                raise
+                else:
+                    return await self._http_request(command, parameter)
+            except (asyncio.TimeoutError, ConnectionError, OSError) as err:
+                retry_count += 1
+                if retry_count < max_retries:
+                    _LOGGER.warning(f"Connection error for '{command}' (attempt {retry_count}/{max_retries}): {err}")
+                    await asyncio.sleep(1)  # Brief delay before retry
+                    continue
+                else:
+                    _LOGGER.error(f"Max retries exceeded for '{command}': {err}")
+                    # Try alternative method as last resort
+                    break
+            except Exception as err:
+                _LOGGER.error(f"Unexpected error for command '{command}': {err}")
+                break
+        
+        # If primary method failed, try the alternative
+        _LOGGER.warning(f"Primary API method failed for '{command}', trying alternative")
+        try:
+            if self.use_tcp_api:
+                return await self._http_request(command, parameter)
+            else:
+                return await self._tcp_request(command, parameter)
+        except Exception as fallback_err:
+            _LOGGER.error(f"Both API methods failed for command '{command}': {fallback_err}")
+            # Return empty result instead of raising to prevent coordinator failures
+            return {"STATUS": [{"STATUS": "E", "Msg": f"API communication failed: {fallback_err}"}]}
     
     async def get_summary(self) -> dict[str, Any]:
         """Get miner summary information."""
@@ -203,16 +221,38 @@ class LuxOSClient:
         return await self._api_request(LUXOS_COMMANDS["reboot"])
     
     async def set_power_mode(self, profile_delta: int) -> bool:
-        """Set power mode using profile delta.
+        """Set power mode using profile delta with comprehensive error handling.
         
         Args:
             profile_delta: Delta value for profile (-2 for eco, 0 for balanced, +2 for max power)
         """
+        if not isinstance(profile_delta, int) or profile_delta < -3 or profile_delta > 3:
+            _LOGGER.error("Invalid profile delta %s, must be integer between -3 and 3", profile_delta)
+            return False
+            
         try:
             result = await self.set_profile(f"delta,{profile_delta}")
+            
+            # Handle empty or malformed response
+            if not result or not isinstance(result, dict):
+                _LOGGER.error("Invalid response format for profile delta %s: %s", profile_delta, result)
+                return False
+            
             # Check if command was successful based on LuxOS response format
-            status = result.get("STATUS", [{}])[0]
-            return status.get("STATUS") == "S"  # "S" means success in LuxOS
+            if "STATUS" in result and result["STATUS"]:
+                status = result["STATUS"][0] if result["STATUS"] else {}
+                status_code = status.get("STATUS", "E")
+                success = status_code == "S"  # "S" means success in LuxOS
+                
+                if success:
+                    _LOGGER.info("Successfully set power mode to delta %s", profile_delta)
+                else:
+                    msg = status.get("Msg", "Unknown error")
+                    _LOGGER.warning("LuxOS returned status '%s' for delta %s: %s", status_code, profile_delta, msg)
+                return success
+            else:
+                _LOGGER.warning("No STATUS in LuxOS response for delta %s", profile_delta)
+                return False
         except Exception as err:
             _LOGGER.error("Error setting power mode with delta %s: %s", profile_delta, err)
             return False
@@ -276,6 +316,58 @@ class LuxOSClient:
         """Resume mining by setting to balanced mode."""
         _LOGGER.info("Resuming mining by setting balanced mode")
         return await self.set_balanced_mode()
+    
+    async def set_power_limit(self, watts: int) -> bool:
+        """Set power limit (LuxOS doesn't support direct power limits, use profiles instead)."""
+        try:
+            # LuxOS doesn't support direct power limits
+            # Use delta profiles based on power target
+            if watts <= 1500:
+                # Low power - use eco mode (delta -2)
+                return await self.set_power_mode(-2)
+            elif watts <= 3000:
+                # Medium power - use balanced mode (delta 0)
+                return await self.set_power_mode(0)
+            else:
+                # High power - use max mode (delta +2)
+                return await self.set_power_mode(2)
+        except Exception as err:
+            _LOGGER.error("Error setting power limit to %s watts: %s", watts, err)
+            return False
+    
+    async def set_temp_control(self, target_temp: float) -> bool:
+        """Set temperature control threshold."""
+        try:
+            return await self.set_temperature_control(target_temp, "auto")
+        except Exception as err:
+            _LOGGER.error("Error setting temperature control: %s", err)
+            return False
+    
+    async def enable_board(self, board_id: int) -> bool:
+        """Enable hashboard (LuxOS limitation: individual board control not supported)."""
+        try:
+            # LuxOS API doesn't support individual hashboard control
+            # Use balanced profile to ensure all boards are active
+            success = await self.set_balanced_mode()
+            if success:
+                _LOGGER.info("Board %s enable requested - applied balanced mode (LuxOS limitation)", board_id)
+            return success
+        except Exception as err:
+            _LOGGER.error("Error enabling board %s: %s", board_id, err)
+            return False
+    
+    async def disable_board(self, board_id: int) -> bool:
+        """Disable hashboard (LuxOS limitation: individual board control not supported)."""
+        try:
+            # LuxOS API doesn't support individual hashboard control
+            # Use eco profile to reduce overall power
+            success = await self.set_eco_mode()
+            if success:
+                _LOGGER.info("Board %s disable requested - applied eco mode (LuxOS limitation)", board_id)
+            return success
+        except Exception as err:
+            _LOGGER.error("Error disabling board %s: %s", board_id, err)
+            return False
     
     async def close(self) -> None:
         """Close the session."""

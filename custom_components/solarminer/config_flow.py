@@ -39,12 +39,13 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     
     try:
         summary = await client.get_summary()
-        if not summary:
+        if not summary or "SUMMARY" not in summary or not summary["SUMMARY"]:
             raise CannotConnect
         
-        # Extract miner model and serial for unique ID
-        miner_model = summary.get("Type", "Unknown")
-        miner_serial = summary.get("SN", "Unknown")
+        # Extract miner model and serial for unique ID from LuxOS response structure
+        summary_data = summary["SUMMARY"][0]
+        miner_model = summary_data.get("Type", "Unknown")
+        miner_serial = summary_data.get("SN", summary_data.get("Serial", "Unknown"))
         
         return {
             "title": f"Solar Miner {miner_model}",
