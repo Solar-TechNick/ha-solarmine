@@ -408,6 +408,55 @@ class LuxOSClient:
             _LOGGER.error("Error disabling board %s: %s", board_id, err)
             return False
     
+    # Working ASC (ASIC) control methods
+    async def asc_enable(self, asc_id: int) -> bool:
+        """Enable ASC (ASIC) unit - working alternative to profile changes."""
+        try:
+            result = await self._api_request("ascenable", str(asc_id))
+            status = result.get("STATUS", [{}])[0]
+            success = status.get("STATUS") == "S"
+            if success:
+                _LOGGER.info("ASC %s enabled successfully", asc_id)
+            else:
+                msg = status.get("Msg", "Unknown error")
+                _LOGGER.warning("ASC %s enable failed: %s", asc_id, msg)
+            return success
+        except Exception as err:
+            _LOGGER.error("Error enabling ASC %s: %s", asc_id, err)
+            return False
+    
+    async def asc_disable(self, asc_id: int) -> bool:
+        """Disable ASC (ASIC) unit - working alternative to profile changes."""
+        try:
+            result = await self._api_request("ascdisable", str(asc_id))
+            status = result.get("STATUS", [{}])[0]
+            success = status.get("STATUS") == "S"
+            if success:
+                _LOGGER.info("ASC %s disabled successfully", asc_id)
+            else:
+                msg = status.get("Msg", "Unknown error")
+                _LOGGER.warning("ASC %s disable failed: %s", asc_id, msg)
+            return success
+        except Exception as err:
+            _LOGGER.error("Error disabling ASC %s: %s", asc_id, err)
+            return False
+    
+    async def restart_mining(self) -> bool:
+        """Restart mining - working alternative to pause/resume."""
+        try:
+            result = await self._api_request("restart")
+            status = result.get("STATUS", [{}])[0]
+            success = status.get("STATUS") == "S"
+            if success:
+                _LOGGER.info("Mining restart initiated")
+            else:
+                msg = status.get("Msg", "Unknown error")
+                _LOGGER.warning("Mining restart failed: %s", msg)
+            return success
+        except Exception as err:
+            _LOGGER.error("Error restarting mining: %s", err)
+            return False
+    
     async def close(self) -> None:
         """Close the session."""
         if self._session and not self._session.closed:

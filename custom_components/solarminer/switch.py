@@ -137,30 +137,28 @@ class SolarMinerHashboardSwitch(SolarMinerSwitchEntity):
         return None
     
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn on the hashboard (LuxOS doesn't support individual board control, use power profiles)."""
+        """Turn on the hashboard using ASC enable command."""
         try:
-            # LuxOS doesn't support individual hashboard control
-            # Instead, use balanced profile to ensure mining is active
-            success = await self._client.set_balanced_mode()
+            # Use working ASC enable command instead of profile changes
+            success = await self._client.asc_enable(self._board_id)
             if success:
                 await self.coordinator.async_request_refresh()
-                _LOGGER.info("Board %s control: Set balanced mode (LuxOS limitation)", self._board_id)
+                _LOGGER.info("Board %s enabled successfully", self._board_id)
             else:
-                _LOGGER.error("Failed to enable board %s via profile change", self._board_id)
+                _LOGGER.error("Failed to enable board %s", self._board_id)
         except Exception as err:
             _LOGGER.error("Error enabling board %s: %s", self._board_id, err)
     
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn off the hashboard (LuxOS doesn't support individual board control, use power profiles)."""
+        """Turn off the hashboard using ASC disable command."""
         try:
-            # LuxOS doesn't support individual hashboard control
-            # Instead, use eco mode to reduce power
-            success = await self._client.set_eco_mode()
+            # Use working ASC disable command instead of profile changes
+            success = await self._client.asc_disable(self._board_id)
             if success:
                 await self.coordinator.async_request_refresh()
-                _LOGGER.info("Board %s control: Set eco mode (LuxOS limitation)", self._board_id)
+                _LOGGER.info("Board %s disabled successfully", self._board_id)
             else:
-                _LOGGER.error("Failed to disable board %s via profile change", self._board_id)
+                _LOGGER.error("Failed to disable board %s", self._board_id)
         except Exception as err:
             _LOGGER.error("Error disabling board %s: %s", self._board_id, err)
     
@@ -181,7 +179,7 @@ class SolarMinerHashboardSwitch(SolarMinerSwitchEntity):
                         "chip_count": dev.get("Chip Count"),
                         "device_elapsed": dev.get("Device Elapsed"),
                         "enabled": dev.get("Enabled"),
-                        "luxos_limitation": "Individual board control not supported by LuxOS API",
+                        "control_method": "ASC enable/disable commands",
                     }
         return {}
 
@@ -232,24 +230,31 @@ class SolarMinerMiningSwitch(SolarMinerSwitchEntity):
         return None
     
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Start mining (enable all boards)."""
+        """Start mining using restart command."""
         try:
-            success = await self._client.resume_mining()
+            success = await self._client.restart_mining()
             if success:
                 await self.coordinator.async_request_refresh()
+                _LOGGER.info("Mining started via restart command")
             else:
                 _LOGGER.error("Failed to start mining")
         except Exception as err:
             _LOGGER.error("Error starting mining: %s", err)
     
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Stop mining (disable all boards)."""
+        """Stop mining by disabling all ASC units."""
         try:
-            success = await self._client.pause_mining()
-            if success:
+            # Disable all 3 hashboards/ASC units
+            success_count = 0
+            for asc_id in range(3):
+                if await self._client.asc_disable(asc_id):
+                    success_count += 1
+            
+            if success_count > 0:
                 await self.coordinator.async_request_refresh()
+                _LOGGER.info("Mining stopped - disabled %s/3 ASC units", success_count)
             else:
-                _LOGGER.error("Failed to stop mining")
+                _LOGGER.error("Failed to stop mining - no ASC units disabled")
         except Exception as err:
             _LOGGER.error("Error stopping mining: %s", err)
 
@@ -276,26 +281,36 @@ class SolarMinerPauseMiningSwitch(SolarMinerSwitchEntity):
         return self._is_paused
     
     async def async_turn_on(self, **kwargs: Any) -> None:
-        """Pause mining."""
+        """Pause mining by disabling all ASC units."""
         try:
-            success = await self._client.pause_mining()
-            if success:
+            # Disable all 3 hashboards/ASC units to pause mining
+            success_count = 0
+            for asc_id in range(3):
+                if await self._client.asc_disable(asc_id):
+                    success_count += 1
+            
+            if success_count > 0:
                 self._is_paused = True
                 await self.coordinator.async_request_refresh()
-                _LOGGER.info("Mining paused for miner %s", self._config_entry.data['host'])
+                _LOGGER.info("Mining paused - disabled %s/3 ASC units for miner %s", success_count, self._config_entry.data['host'])
             else:
                 _LOGGER.error("Failed to pause mining for miner %s", self._config_entry.data['host'])
         except Exception as err:
             _LOGGER.error("Error pausing mining: %s", err)
     
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Resume mining."""
+        """Resume mining by enabling all ASC units."""
         try:
-            success = await self._client.resume_mining()
-            if success:
+            # Enable all 3 hashboards/ASC units to resume mining
+            success_count = 0
+            for asc_id in range(3):
+                if await self._client.asc_enable(asc_id):
+                    success_count += 1
+            
+            if success_count > 0:
                 self._is_paused = False
                 await self.coordinator.async_request_refresh()
-                _LOGGER.info("Mining resumed for miner %s", self._config_entry.data['host'])
+                _LOGGER.info("Mining resumed - enabled %s/3 ASC units for miner %s", success_count, self._config_entry.data['host'])
             else:
                 _LOGGER.error("Failed to resume mining for miner %s", self._config_entry.data['host'])
         except Exception as err:
