@@ -42,15 +42,29 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         if not summary or "SUMMARY" not in summary or not summary["SUMMARY"]:
             raise CannotConnect
         
-        # Extract miner model and serial for unique ID from LuxOS response structure
+        # Extract miner model and create unique identifier
         summary_data = summary["SUMMARY"][0]
         miner_model = summary_data.get("Type", "Unknown")
-        miner_serial = summary_data.get("SN", summary_data.get("Serial", "Unknown"))
+        
+        # Try to get serial number, but fall back to IP address if not available
+        miner_serial = summary_data.get("SN", summary_data.get("Serial", ""))
+        
+        # Use IP address as unique identifier to allow multiple miners
+        host_ip = data[CONF_HOST]
+        unique_id = f"solarminer_{host_ip.replace('.', '_')}"
+        
+        # If we have a serial, include it in the title for clarity
+        if miner_serial and miner_serial != "Unknown":
+            title = f"Solar Miner {miner_model} ({host_ip}) - {miner_serial}"
+        else:
+            title = f"Solar Miner {miner_model} ({host_ip})"
         
         return {
-            "title": f"Solar Miner {miner_model}",
+            "title": title,
             "miner_model": miner_model,
             "miner_serial": miner_serial,
+            "unique_id": unique_id,
+            "host_ip": host_ip,
         }
     except Exception as exc:
         _LOGGER.error("Error connecting to miner: %s", exc)
@@ -79,8 +93,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
-                # Set unique ID based on miner serial
-                await self.async_set_unique_id(info["miner_serial"])
+                # Set unique ID based on IP address to allow multiple miners
+                await self.async_set_unique_id(info["unique_id"])
                 self._abort_if_unique_id_configured()
                 
                 return self.async_create_entry(

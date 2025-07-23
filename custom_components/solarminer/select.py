@@ -55,12 +55,17 @@ class SolarMinerSelectEntity(CoordinatorEntity, SelectEntity):
         super().__init__(coordinator)
         self._client = client
         self._config_entry = config_entry
+        # Create device identifier using IP address
+        host_ip = config_entry.data['host']
+        device_id = f"solarminer_{host_ip.replace('.', '_')}"
+        
         self._attr_device_info = {
-            "identifiers": {(DOMAIN, config_entry.entry_id)},
-            "name": f"Solar Miner {config_entry.data['host']}",
+            "identifiers": {(DOMAIN, device_id)},
+            "name": f"Solar Miner {host_ip}",
             "manufacturer": "Bitmain",
             "model": self._get_miner_model(),
             "sw_version": self._get_firmware_version(),
+            "configuration_url": f"http://{host_ip}",
         }
     
     def _get_miner_model(self) -> str:
