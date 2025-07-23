@@ -231,20 +231,28 @@ class SolarMinerMaxPowerButton(SolarMinerButtonEntity):
     async def async_press(self) -> None:
         """Handle the button press."""
         try:
+            host = self._config_entry.data['host']
+            _LOGGER.warning(
+                "LuxOS profile changes require web authentication. "
+                "Please change to Max Power profile manually at http://%s", 
+                host
+            )
+            
+            # Still attempt the change in case authentication is available
             profile = POWER_PROFILES["max_power"]
-            # LuxOS expects format: "delta,2" not "overclock_2"
-            success = await self._client.set_profile(f"delta,{profile['overclock']}")
+            success = await self._client.set_power_mode(profile['overclock'])
+            
             if success:
                 await self.coordinator.async_request_refresh()
-                _LOGGER.info(
-                    "Max Power profile (delta %s) applied for miner %s",
-                    profile['overclock'],
-                    self._config_entry.data['host']
-                )
+                _LOGGER.info("Max Power profile applied for miner %s", host)
             else:
-                _LOGGER.error("Failed to apply Max Power profile for miner %s", self._config_entry.data['host'])
+                _LOGGER.info(
+                    "Profile change failed (expected for LuxOS). "
+                    "Please use web interface at http://%s to change to Max Power profile.", 
+                    host
+                )
         except Exception as err:
-            _LOGGER.error("Error applying Max Power profile: %s", err)
+            _LOGGER.error("Error with Max Power profile change: %s", err)
 
 
 class SolarMinerBalancedButton(SolarMinerButtonEntity):
@@ -265,20 +273,28 @@ class SolarMinerBalancedButton(SolarMinerButtonEntity):
     async def async_press(self) -> None:
         """Handle the button press."""
         try:
+            host = self._config_entry.data['host']
+            _LOGGER.warning(
+                "LuxOS profile changes require web authentication. "
+                "Please change to Balanced profile manually at http://%s", 
+                host
+            )
+            
+            # Still attempt the change in case authentication is available
             profile = POWER_PROFILES["balanced"]
-            # LuxOS expects format: "delta,0" for balanced
-            success = await self._client.set_profile(f"delta,{profile['overclock']}")
+            success = await self._client.set_power_mode(profile['overclock'])
+            
             if success:
                 await self.coordinator.async_request_refresh()
-                _LOGGER.info(
-                    "Balanced profile (delta %s) applied for miner %s",
-                    profile['overclock'],
-                    self._config_entry.data['host']
-                )
+                _LOGGER.info("Balanced profile applied for miner %s", host)
             else:
-                _LOGGER.error("Failed to apply Balanced profile for miner %s", self._config_entry.data['host'])
+                _LOGGER.info(
+                    "Profile change failed (expected for LuxOS). "
+                    "Please use web interface at http://%s to change to Balanced profile.", 
+                    host
+                )
         except Exception as err:
-            _LOGGER.error("Error applying Balanced profile: %s", err)
+            _LOGGER.error("Error with Balanced profile change: %s", err)
 
 
 class SolarMinerUltraEcoButton(SolarMinerButtonEntity):
@@ -299,20 +315,28 @@ class SolarMinerUltraEcoButton(SolarMinerButtonEntity):
     async def async_press(self) -> None:
         """Handle the button press."""
         try:
+            host = self._config_entry.data['host']
+            _LOGGER.warning(
+                "LuxOS profile changes require web authentication. "
+                "Please change to Ultra Eco profile manually at http://%s", 
+                host
+            )
+            
+            # Still attempt the change in case authentication is available
             profile = POWER_PROFILES["ultra_eco"]
-            # LuxOS expects format: "delta,-2" for ultra eco
-            success = await self._client.set_profile(f"delta,{profile['overclock']}")
+            success = await self._client.set_power_mode(profile['overclock'])
+            
             if success:
                 await self.coordinator.async_request_refresh()
-                _LOGGER.info(
-                    "Ultra Eco profile (delta %s) applied for miner %s",
-                    profile['overclock'],
-                    self._config_entry.data['host']
-                )
+                _LOGGER.info("Ultra Eco profile applied for miner %s", host)
             else:
-                _LOGGER.error("Failed to apply Ultra Eco profile for miner %s", self._config_entry.data['host'])
+                _LOGGER.info(
+                    "Profile change failed (expected for LuxOS). "
+                    "Please use web interface at http://%s to change to Ultra Eco profile.", 
+                    host
+                )
         except Exception as err:
-            _LOGGER.error("Error applying Ultra Eco profile: %s", err)
+            _LOGGER.error("Error with Ultra Eco profile change: %s", err)
 
 
 class SolarMinerUpdateSolarPowerButton(SolarMinerButtonEntity):

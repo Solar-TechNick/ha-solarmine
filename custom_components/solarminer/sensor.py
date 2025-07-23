@@ -60,6 +60,7 @@ async def async_setup_entry(
         # Status sensors
         SolarMinerStatusSensor(coordinator, config_entry),
         SolarMinerUptimeSensor(coordinator, config_entry),
+        SolarMinerProfileSensor(coordinator, config_entry),
     ]
     
     async_add_entities(entities)
@@ -153,31 +154,47 @@ class SolarMinerPowerSensor(SolarMinerSensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the power consumption."""
+        # First try to get actual power consumption from LuxOS power API
+        if self.coordinator.data and "power" in self.coordinator.data:
+            power_data = self.coordinator.data["power"]
+            if "POWER" in power_data and power_data["POWER"]:
+                power_item = power_data["POWER"][0]
+                watts = power_item.get("Watts")
+                if watts is not None:
+                    try:
+                        return float(watts)
+                    except (ValueError, TypeError):
+                        pass
+        
+        # Fallback: estimate from hashrate and current profile
         if self.coordinator.data and "summary" in self.coordinator.data:
             summary_data = self.coordinator.data["summary"]
-            # LuxOS returns data in SUMMARY array
             if "SUMMARY" in summary_data and len(summary_data["SUMMARY"]) > 0:
                 summary_item = summary_data["SUMMARY"][0]
-                # Try different power field names used by LuxOS
-                power_fields = [
-                    "Power", "Power Consumption", "Watts", "Power Usage",
-                    "Utility", "Work Utility"  # Sometimes LuxOS reports efficiency metrics
-                ]
-                for power_field in power_fields:
-                    power_str = summary_item.get(power_field, "0")
-                    try:
-                        power_val = float(power_str)
-                        if power_val > 0:
-                            return power_val
-                    except (ValueError, TypeError):
-                        continue
                 
-                # If no direct power reading, estimate from hashrate (S21+ typically 17.5 J/TH)
+                # Get current hashrate
                 hashrate_str = summary_item.get("GHS 5s", "0")
                 try:
                     hashrate_ghs = float(hashrate_str)
                     hashrate_ths = hashrate_ghs / 1000
-                    estimated_power = hashrate_ths * 17.5  # S21+ efficiency
+                    
+                    # Try to get more accurate power from profiles data
+                    if self.coordinator.data and "profiles" in self.coordinator.data:
+                        profiles_data = self.coordinator.data["profiles"]
+                        if "PROFILES" in profiles_data:
+                            # Find profile matching current hashrate approximately
+                            best_match_watts = None
+                            for profile in profiles_data["PROFILES"]:
+                                profile_hashrate = profile.get("Hashrate", 0)
+                                if abs(profile_hashrate - hashrate_ths) < 10:  # Within 10 TH/s
+                                    best_match_watts = profile.get("Watts")
+                                    break
+                            
+                            if best_match_watts:
+                                return float(best_match_watts)
+                    
+                    # Final fallback: estimate using S21+ efficiency
+                    estimated_power = hashrate_ths * 17.5
                     return round(estimated_power) if estimated_power > 0 else None
                 except (ValueError, TypeError):
                     pass
@@ -487,6 +504,86 @@ class SolarMinerSolarPowerSensor(SolarMinerSensorEntity):
         # This would be set through the solar power input
         # For now, return a placeholder value
         return getattr(self, "_solar_power", 0)
+
+
+class SolarMinerProfileSensor(SolarMinerSensorEntity):
+    """Solar Miner current profile sensor."""
+    
+    def __init__(
+        self,
+        coordinator: SolarMinerDataUpdateCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, config_entry)
+        self._attr_name = f"Solar Miner {config_entry.data['host']} Profile"
+        self._attr_unique_id = f"{config_entry.entry_id}_profile"
+        self._attr_icon = "mdi:tune"
+    
+    @property
+    def native_value(self) -> str | None:
+        """Return the current profile."""
+        # Get current profile from coordinator data
+        if self.coordinator.data:
+            # Check if we have summary data first
+            if "summary" in self.coordinator.data:
+                summary_data = self.coordinator.data["summary"]
+                if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
+                    # Try to get profile from summary data
+                    summary_item = summary_data["SUMMARY"][0]
+                    if "Profile" in summary_item:
+                        return summary_item.get("Profile", "Unknown")
+            
+            # Fallback: check devices data for profile info
+            if "devices" in self.coordinator.data:
+                devices_data = self.coordinator.data["devices"]
+                if "DEVS" in devices_data and devices_data["DEVS"]:
+                    # Get profile from first device
+                    device = devices_data["DEVS"][0]
+                    profile = device.get("Profile", "Unknown")
+                    if profile != "Unknown":
+                        return profile
+        
+        return "Unknown"
+    
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return additional profile attributes."""
+        attrs = {}
+        
+        # Add current profile details from profiles data
+        if self.coordinator.data and "profiles" in self.coordinator.data:
+            profiles_data = self.coordinator.data["profiles"]
+            if "PROFILES" in profiles_data:
+                # Find current profile step
+                current_step = "0"
+                current_profile = "default"
+                
+                # Try to get current profile from devices data
+                if "devices" in self.coordinator.data:
+                    devices_data = self.coordinator.data["devices"]
+                    if "DEVS" in devices_data and devices_data["DEVS"]:
+                        device = devices_data["DEVS"][0]
+                        current_profile = device.get("Profile", "default")
+                
+                for profile in profiles_data["PROFILES"]:
+                    if profile.get("Profile Name", "") == current_profile:
+                        attrs.update({
+                            "frequency_mhz": profile.get("Frequency"),
+                            "expected_hashrate_ths": profile.get("Hashrate"),
+                            "expected_watts": profile.get("Watts"),
+                            "voltage": profile.get("Voltage"),
+                            "profile_step": profile.get("Step"),
+                            "is_tuned": profile.get("IsTuned", False),
+                        })
+                        break
+                
+                # Add web interface URL for profile changes
+                host = self._config_entry.data['host']
+                attrs["web_interface"] = f"http://{host}"
+                attrs["profile_change_note"] = "Use web interface to change profiles (LuxOS limitation)"
+        
+        return attrs
 
 
 class SolarMinerSolarEfficiencySensor(SolarMinerSensorEntity):

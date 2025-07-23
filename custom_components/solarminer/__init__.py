@@ -83,16 +83,25 @@ class SolarMinerDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Update data via library."""
         try:
+            # Get core data
             summary = await self.client.get_summary()
             pools = await self.client.get_pools()
             devs = await self.client.get_devs()
             stats = await self.client.get_stats()
+            
+            # Get additional LuxOS-specific data
+            profiles = await self.client.get_profiles()
+            power = await self.client.get_power()
+            atm = await self.client.get_atm()
             
             return {
                 "summary": summary,
                 "pools": pools,
                 "devices": devs,  # Use 'devices' key for consistency with sensors
                 "stats": stats,
+                "profiles": profiles,
+                "power": power,
+                "atm": atm,
                 "last_update": self.hass.loop.time(),
             }
         except Exception as exception:

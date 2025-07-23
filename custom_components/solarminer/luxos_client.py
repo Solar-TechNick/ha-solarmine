@@ -199,13 +199,28 @@ class LuxOSClient:
         """Get detailed device information."""
         return await self._api_request(LUXOS_COMMANDS["devdetails"])
     
+    async def get_profiles(self) -> dict[str, Any]:
+        """Get available profiles information."""
+        return await self._api_request("profiles")
+    
+    async def get_power(self) -> dict[str, Any]:
+        """Get current power consumption."""
+        return await self._api_request("power")
+    
+    async def get_atm(self) -> dict[str, Any]:
+        """Get Advanced Thermal Management information."""
+        return await self._api_request("atm")
+    
     async def set_profile(self, profile_params: str) -> dict[str, Any]:
         """Set profile using LuxOS profileset command.
         
+        Note: LuxOS requires web-based authentication for profile changes.
+        This method will attempt the change but will likely fail without session_id.
+        
         Args:
-            profile_params: Profile parameters as comma-separated string
-                          e.g., "delta,-2" for delta profile with -2 setting
+            profile_params: Profile parameters (requires session_id for LuxOS)
         """
+        _LOGGER.warning("Profile changes require web authentication - this may fail")
         return await self._api_request(LUXOS_COMMANDS["profileset"], profile_params)
     
     async def set_atm(self, atm_params: str) -> dict[str, Any]:
@@ -221,41 +236,21 @@ class LuxOSClient:
         return await self._api_request(LUXOS_COMMANDS["reboot"])
     
     async def set_power_mode(self, profile_delta: int) -> bool:
-        """Set power mode using profile delta with comprehensive error handling.
+        """Set power mode using profile step (LuxOS uses steps, not deltas).
+        
+        Note: LuxOS requires web authentication for profile changes.
+        This method will log the limitation and return False.
         
         Args:
-            profile_delta: Delta value for profile (-2 for eco, 0 for balanced, +2 for max power)
+            profile_delta: Step value for profile (-2 for eco, 0 for balanced, +2 for max power)
         """
-        if not isinstance(profile_delta, int) or profile_delta < -3 or profile_delta > 3:
-            _LOGGER.error("Invalid profile delta %s, must be integer between -3 and 3", profile_delta)
-            return False
-            
-        try:
-            result = await self.set_profile(f"delta,{profile_delta}")
-            
-            # Handle empty or malformed response
-            if not result or not isinstance(result, dict):
-                _LOGGER.error("Invalid response format for profile delta %s: %s", profile_delta, result)
-                return False
-            
-            # Check if command was successful based on LuxOS response format
-            if "STATUS" in result and result["STATUS"]:
-                status = result["STATUS"][0] if result["STATUS"] else {}
-                status_code = status.get("STATUS", "E")
-                success = status_code == "S"  # "S" means success in LuxOS
-                
-                if success:
-                    _LOGGER.info("Successfully set power mode to delta %s", profile_delta)
-                else:
-                    msg = status.get("Msg", "Unknown error")
-                    _LOGGER.warning("LuxOS returned status '%s' for delta %s: %s", status_code, profile_delta, msg)
-                return success
-            else:
-                _LOGGER.warning("No STATUS in LuxOS response for delta %s", profile_delta)
-                return False
-        except Exception as err:
-            _LOGGER.error("Error setting power mode with delta %s: %s", profile_delta, err)
-            return False
+        _LOGGER.warning(
+            "LuxOS profile changes require web authentication. "
+            "Profile change to step %s cannot be performed via API. "
+            "Please use the web interface at http://%s", 
+            profile_delta, self.host
+        )
+        return False
     
     async def set_eco_mode(self) -> bool:
         """Set miner to eco mode (delta -2)."""
