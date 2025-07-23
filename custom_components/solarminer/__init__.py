@@ -89,10 +89,28 @@ class SolarMinerDataUpdateCoordinator(DataUpdateCoordinator):
             devs = await self.client.get_devs()
             stats = await self.client.get_stats()
             
-            # Get additional LuxOS-specific data
-            profiles = await self.client.get_profiles()
-            power = await self.client.get_power()
-            atm = await self.client.get_atm()
+            # Get additional LuxOS-specific data with error handling
+            profiles = None
+            power = None
+            atm = None
+            
+            try:
+                profiles = await self.client.get_profiles()
+            except Exception as err:
+                _LOGGER.warning(f"Failed to get profiles data: {err}")
+                profiles = {"PROFILES": []}  # Empty fallback
+            
+            try:
+                power = await self.client.get_power()
+            except Exception as err:
+                _LOGGER.warning(f"Failed to get power data: {err}")
+                power = {"POWER": [{"Watts": 0}]}  # Fallback
+            
+            try:
+                atm = await self.client.get_atm()
+            except Exception as err:
+                _LOGGER.warning(f"Failed to get ATM data: {err}")
+                atm = {"ATM": [{"Enabled": False}]}  # Fallback
             
             return {
                 "summary": summary,

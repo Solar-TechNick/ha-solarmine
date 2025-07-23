@@ -50,6 +50,21 @@ async def async_setup_entry(
         SolarMinerBoardSensor(coordinator, config_entry, 1),
         SolarMinerBoardSensor(coordinator, config_entry, 2),
         
+        # Individual board temperature sensors
+        SolarMinerBoardTemperatureSensor(coordinator, config_entry, 0),
+        SolarMinerBoardTemperatureSensor(coordinator, config_entry, 1),
+        SolarMinerBoardTemperatureSensor(coordinator, config_entry, 2),
+        
+        # Individual fan speed sensors
+        SolarMinerFanSensor(coordinator, config_entry, 1),
+        SolarMinerFanSensor(coordinator, config_entry, 2),
+        SolarMinerFanSensor(coordinator, config_entry, 3),
+        SolarMinerFanSensor(coordinator, config_entry, 4),
+        
+        # Additional performance sensors
+        SolarMinerIdealHashrateSensor(coordinator, config_entry),
+        SolarMinerEfficiencyJouleSensor(coordinator, config_entry),
+        
         # Pool information
         SolarMinerPoolSensor(coordinator, config_entry),
         
@@ -720,3 +735,224 @@ class SolarMinerUptimeSensor(SolarMinerSensorEntity):
                 except (ValueError, TypeError):
                     return None
         return None
+
+
+class SolarMinerBoardTemperatureSensor(SolarMinerSensorEntity):
+    """Solar Miner individual board temperature sensor."""
+    
+    def __init__(
+        self,
+        coordinator: SolarMinerDataUpdateCoordinator,
+        config_entry: ConfigEntry,
+        board_id: int,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, config_entry)
+        self._board_id = board_id
+        self._attr_name = f"Solar Miner {config_entry.data['host']} Board {board_id} Temperature"
+        self._attr_unique_id = f"{config_entry.entry_id}_board_{board_id}_temperature"
+        self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        self._attr_device_class = SensorDeviceClass.TEMPERATURE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_entity_category = "diagnostic"
+    
+    @property
+    def native_value(self) -> float | None:
+        """Return the board temperature."""
+        if self.coordinator.data and "devices" in self.coordinator.data:
+            devices_data = self.coordinator.data["devices"]
+            if "DEVS" in devices_data and len(devices_data["DEVS"]) > self._board_id:
+                device = devices_data["DEVS"][self._board_id]
+                temp_str = device.get("Temperature", "0")
+                try:
+                    return float(temp_str)
+                except (ValueError, TypeError):
+                    pass
+        return None
+
+
+class SolarMinerFanSensor(SolarMinerSensorEntity):
+    """Solar Miner individual fan speed sensor."""
+    
+    def __init__(
+        self,
+        coordinator: SolarMinerDataUpdateCoordinator,
+        config_entry: ConfigEntry,
+        fan_id: int,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, config_entry)
+        self._fan_id = fan_id
+        self._attr_name = f"Solar Miner {config_entry.data['host']} Fan {fan_id}"
+        self._attr_unique_id = f"{config_entry.entry_id}_fan_{fan_id}"
+        self._attr_native_unit_of_measurement = "RPM"
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_icon = "mdi:fan"
+        self._attr_entity_category = "diagnostic"
+    
+    @property
+    def native_value(self) -> float | None:
+        """Return the fan speed."""
+        if self.coordinator.data and "stats" in self.coordinator.data:
+            stats_data = self.coordinator.data["stats"]
+            if "STATS" in stats_data and len(stats_data["STATS"]) > 1:
+                # Stats data is usually in STATS[1] for device info
+                device_stats = stats_data["STATS"][1]
+                fan_key = f"fan{self._fan_id}"
+                fan_speed = device_stats.get(fan_key)
+                if fan_speed is not None:
+                    try:
+                        return float(fan_speed)
+                    except (ValueError, TypeError):
+                        pass
+        return None
+
+
+class SolarMinerIdealHashrateSensor(SolarMinerSensorEntity):
+    """Solar Miner ideal hashrate sensor."""
+    
+    def __init__(
+        self,
+        coordinator: SolarMinerDataUpdateCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, config_entry)
+        self._attr_name = f"Solar Miner {config_entry.data['host']} Ideal Hashrate"
+        self._attr_unique_id = f"{config_entry.entry_id}_ideal_hashrate"
+        self._attr_native_unit_of_measurement = "TH/s"
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_icon = "mdi:speedometer"
+        self._attr_entity_category = "diagnostic"
+    
+    @property
+    def native_value(self) -> float | None:
+        """Return the ideal hashrate from current profile."""
+        # Get ideal hashrate from profiles data based on current profile
+        if self.coordinator.data and "profiles" in self.coordinator.data:
+            profiles_data = self.coordinator.data["profiles"]
+            if "PROFILES" in profiles_data and profiles_data["PROFILES"]:
+                # Get current profile name from device data
+                current_profile = "default"
+                if "devices" in self.coordinator.data:
+                    devices_data = self.coordinator.data["devices"]
+                    if "DEVS" in devices_data and devices_data["DEVS"]:
+                        device = devices_data["DEVS"][0]
+                        current_profile = device.get("Profile", "default")
+                
+                # Find matching profile
+                try:
+                    for profile in profiles_data["PROFILES"]:
+                        if profile.get("Profile Name") == current_profile:
+                            ideal_hashrate = profile.get("Hashrate")
+                            if ideal_hashrate is not None:
+                                try:
+                                    return float(ideal_hashrate)
+                                except (ValueError, TypeError):
+                                    continue
+                except (TypeError, KeyError) as err:
+                    _LOGGER.debug(f"Error accessing profiles data: {err}")
+        return None
+    
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return additional attributes."""
+        attrs = {}
+        
+        # Add actual vs ideal comparison
+        if self.coordinator.data and "summary" in self.coordinator.data:
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
+                summary_item = summary_data["SUMMARY"][0]
+                actual_ghs = summary_item.get("GHS 5s", 0)
+                try:
+                    actual_ths = float(actual_ghs) / 1000
+                    ideal_ths = self.native_value or 0
+                    
+                    if ideal_ths > 0:
+                        efficiency_percent = (actual_ths / ideal_ths) * 100
+                        attrs["actual_hashrate_ths"] = round(actual_ths, 2)
+                        attrs["hashrate_efficiency_percent"] = round(efficiency_percent, 1)
+                        attrs["hashrate_deficit_ths"] = round(ideal_ths - actual_ths, 2)
+                except (ValueError, TypeError):
+                    pass
+        
+        return attrs
+
+
+class SolarMinerEfficiencyJouleSensor(SolarMinerSensorEntity):
+    """Solar Miner power efficiency sensor in J/TH."""
+    
+    def __init__(
+        self,
+        coordinator: SolarMinerDataUpdateCoordinator,
+        config_entry: ConfigEntry,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, config_entry)
+        self._attr_name = f"Solar Miner {config_entry.data['host']} Power Efficiency"
+        self._attr_unique_id = f"{config_entry.entry_id}_power_efficiency"
+        self._attr_native_unit_of_measurement = "J/TH"
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._attr_icon = "mdi:flash"
+        self._attr_entity_category = "diagnostic"
+    
+    @property
+    def native_value(self) -> float | None:
+        """Return the power efficiency in Joules per Tera Hash."""
+        # Calculate J/TH from current power and hashrate
+        power_watts = None
+        hashrate_ths = None
+        
+        # Get actual power consumption with error handling
+        if self.coordinator.data and "power" in self.coordinator.data:
+            try:
+                power_data = self.coordinator.data["power"]
+                if "POWER" in power_data and power_data["POWER"]:
+                    power_item = power_data["POWER"][0]
+                    power_watts = power_item.get("Watts")
+            except (TypeError, KeyError, IndexError) as err:
+                _LOGGER.debug(f"Error accessing power data: {err}")
+        
+        # Get current hashrate
+        if self.coordinator.data and "summary" in self.coordinator.data:
+            summary_data = self.coordinator.data["summary"]
+            if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
+                summary_item = summary_data["SUMMARY"][0]
+                hashrate_ghs = summary_item.get("GHS 5s", 0)
+                try:
+                    hashrate_ths = float(hashrate_ghs) / 1000
+                except (ValueError, TypeError):
+                    pass
+        
+        # Calculate efficiency
+        if power_watts is not None and hashrate_ths is not None and hashrate_ths > 0:
+            try:
+                # J/TH = Watts / TH/s (since 1 Watt = 1 Joule/second)
+                efficiency = float(power_watts) / hashrate_ths
+                return round(efficiency, 2)
+            except (ValueError, TypeError, ZeroDivisionError):
+                pass
+        
+        return None
+    
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return additional attributes."""
+        attrs = {}
+        
+        # Add efficiency rating
+        efficiency = self.native_value
+        if efficiency is not None:
+            if efficiency < 20:
+                attrs["efficiency_rating"] = "Excellent"
+            elif efficiency < 25:
+                attrs["efficiency_rating"] = "Good"
+            elif efficiency < 30:
+                attrs["efficiency_rating"] = "Average"
+            elif efficiency < 40:
+                attrs["efficiency_rating"] = "Poor"
+            else:
+                attrs["efficiency_rating"] = "Very Poor"
+        
+        return attrs

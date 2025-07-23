@@ -3,7 +3,7 @@
 DOMAIN = "solarminer"
 
 # Default configuration
-DEFAULT_SCAN_INTERVAL = 30
+DEFAULT_SCAN_INTERVAL = 10
 DEFAULT_TIMEOUT = 10
 
 # Miner models

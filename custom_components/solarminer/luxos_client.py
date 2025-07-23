@@ -79,18 +79,45 @@ class LuxOSClient:
             writer.write(cmd_json.encode('utf-8'))
             await writer.drain()
             
-            # Read response
-            response_data = await asyncio.wait_for(
-                reader.read(8192), 
-                timeout=self.timeout
-            )
+            # Read response - increase buffer for large profile data
+            response_data = b""
+            while True:
+                chunk = await asyncio.wait_for(
+                    reader.read(8192), 
+                    timeout=self.timeout
+                )
+                if not chunk:
+                    break
+                response_data += chunk
+                # Check if we have a complete JSON response
+                try:
+                    response_text = response_data.decode('utf-8', errors='ignore')
+                    if response_text.strip().endswith('}'):
+                        break
+                except UnicodeDecodeError:
+                    continue
             
             # Close connection
             writer.close()
             await writer.wait_closed()
             
-            # Parse response
+            # Parse response with better error handling
             response_text = response_data.decode('utf-8', errors='ignore').strip()
+            
+            # Handle potential truncated JSON
+            if not response_text:
+                raise ValueError("Empty response received")
+            
+            # Try to fix common JSON truncation issues
+            if not response_text.endswith('}'):
+                _LOGGER.warning(f"Response appears truncated, attempting to fix: ...{response_text[-50:]}")
+                # Try to find the last complete object
+                last_brace = response_text.rfind('}')
+                if last_brace > 0:
+                    response_text = response_text[:last_brace + 1]
+                else:
+                    raise ValueError("Response is severely truncated")
+            
             result = json.loads(response_text)
             
             _LOGGER.debug(f"TCP API command '{command}' successful")
@@ -101,6 +128,8 @@ class LuxOSClient:
             raise
         except json.JSONDecodeError as err:
             _LOGGER.error(f"Error parsing TCP API JSON response for command '{command}': {err}")
+            _LOGGER.debug(f"Malformed JSON response (first 500 chars): {response_text[:500]}")
+            _LOGGER.debug(f"Malformed JSON response (last 500 chars): {response_text[-500:]}")
             raise
         except Exception as err:
             _LOGGER.error(f"TCP API error for command '{command}': {err}")
@@ -122,7 +151,22 @@ class LuxOSClient:
                 headers={'Content-Type': 'application/json'}
             ) as response:
                 response.raise_for_status()
-                result = await response.json()
+                
+                # Handle large responses properly
+                response_text = await response.text()
+                
+                # Check for truncation issues
+                if not response_text.strip():
+                    raise ValueError("Empty HTTP response received")
+                
+                try:
+                    result = json.loads(response_text)
+                except json.JSONDecodeError as err:
+                    _LOGGER.error(f"HTTP API JSON parsing error for '{command}': {err}")
+                    _LOGGER.debug(f"HTTP response length: {len(response_text)}")
+                    _LOGGER.debug(f"HTTP response (first 500 chars): {response_text[:500]}")
+                    _LOGGER.debug(f"HTTP response (last 500 chars): {response_text[-500:]}")
+                    raise
                 
                 _LOGGER.debug(f"HTTP API command '{command}' successful")
                 return result
