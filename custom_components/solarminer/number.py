@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, TEMP_PROTECTION_THRESHOLD
+from .const import DOMAIN, TEMP_PROTECTION_THRESHOLD, CONF_ALIAS
 from . import SolarMinerDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,9 +62,12 @@ class SolarMinerNumberEntity(CoordinatorEntity, NumberEntity):
         host_ip = config_entry.data['host']
         device_id = f"solarminer_{host_ip.replace('.', '_')}"
         
+        # Get display name from alias or fallback to IP
+        self._display_name = self._get_display_name()
+        
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},
-            "name": f"Solar Miner {host_ip}",
+            "name": self._display_name,
             "manufacturer": "Bitmain",
             "model": self._get_miner_model(),
             "sw_version": self._get_firmware_version(),
@@ -86,6 +89,16 @@ class SolarMinerNumberEntity(CoordinatorEntity, NumberEntity):
             if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
                 return summary_data["SUMMARY"][0].get("Version", "Unknown")
         return "Unknown"
+    
+    def _get_display_name(self) -> str:
+        """Get display name from alias or fallback to default."""
+        alias = self._config_entry.data.get(CONF_ALIAS, "").strip()
+        if alias:
+            return alias
+        else:
+            # Fallback to IP address for backward compatibility
+            host_ip = self._config_entry.data['host']
+            return f"Solar Miner {host_ip}"
 
 
 class SolarMinerSolarPowerInput(SolarMinerNumberEntity):
@@ -99,7 +112,7 @@ class SolarMinerSolarPowerInput(SolarMinerNumberEntity):
     ) -> None:
         """Initialize the number entity."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Solar Power"
+        self._attr_name = f"{self._display_name} Solar Power"
         self._attr_unique_id = f"{config_entry.entry_id}_solar_power_input"
         self._attr_native_unit_of_measurement = UnitOfPower.WATT
         self._attr_native_min_value = 0
@@ -148,7 +161,7 @@ class SolarMinerPowerLimitInput(SolarMinerNumberEntity):
     ) -> None:
         """Initialize the number entity."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Power Limit"
+        self._attr_name = f"{self._display_name} Power Limit"
         self._attr_unique_id = f"{config_entry.entry_id}_power_limit_input"
         self._attr_native_unit_of_measurement = UnitOfPower.WATT
         self._attr_native_min_value = 100
@@ -192,7 +205,7 @@ class SolarMinerMinimumPowerInput(SolarMinerNumberEntity):
     ) -> None:
         """Initialize the number entity."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Minimum Power"
+        self._attr_name = f"{self._display_name} Minimum Power"
         self._attr_unique_id = f"{config_entry.entry_id}_minimum_power_input"
         self._attr_native_unit_of_measurement = UnitOfPower.WATT
         self._attr_native_min_value = 0
@@ -228,7 +241,7 @@ class SolarMinerTempProtectionInput(SolarMinerNumberEntity):
     ) -> None:
         """Initialize the number entity."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Temp Protection"
+        self._attr_name = f"{self._display_name} Temp Protection"
         self._attr_unique_id = f"{config_entry.entry_id}_temp_protection_input"
         self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         self._attr_native_min_value = 60
@@ -271,7 +284,7 @@ class SolarMinerPerformanceInput(SolarMinerNumberEntity):
     ) -> None:
         """Initialize the number entity."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Performance"
+        self._attr_name = f"{self._display_name} Performance"
         self._attr_unique_id = f"{config_entry.entry_id}_performance_input"
         self._attr_native_unit_of_measurement = PERCENTAGE
         self._attr_native_min_value = 50
@@ -326,7 +339,7 @@ class SolarMinerAutomationIntervalInput(SolarMinerNumberEntity):
     ) -> None:
         """Initialize the number entity."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Automation Interval"
+        self._attr_name = f"{self._display_name} Automation Interval"
         self._attr_unique_id = f"{config_entry.entry_id}_automation_interval_input"
         self._attr_native_unit_of_measurement = "minutes"
         self._attr_native_min_value = 1

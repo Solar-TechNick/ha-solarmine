@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, MINING_PRESETS, POWER_PROFILES
+from .const import DOMAIN, MINING_PRESETS, POWER_PROFILES, CONF_ALIAS
 from . import SolarMinerDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -68,9 +68,12 @@ class SolarMinerButtonEntity(CoordinatorEntity, ButtonEntity):
         host_ip = config_entry.data['host']
         device_id = f"solarminer_{host_ip.replace('.', '_')}"
         
+        # Get display name from alias or fallback to IP
+        self._display_name = self._get_display_name()
+        
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},
-            "name": f"Solar Miner {host_ip}",
+            "name": self._display_name,
             "manufacturer": "Bitmain",
             "model": self._get_miner_model(),
             "sw_version": self._get_firmware_version(),
@@ -92,6 +95,16 @@ class SolarMinerButtonEntity(CoordinatorEntity, ButtonEntity):
             if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
                 return summary_data["SUMMARY"][0].get("Version", "Unknown")
         return "Unknown"
+    
+    def _get_display_name(self) -> str:
+        """Get display name from alias or fallback to default."""
+        alias = self._config_entry.data.get(CONF_ALIAS, "").strip()
+        if alias:
+            return alias
+        else:
+            # Fallback to IP address for backward compatibility
+            host_ip = self._config_entry.data['host']
+            return f"Solar Miner {host_ip}"
 
 
 class SolarMinerPauseButton(SolarMinerButtonEntity):
@@ -105,7 +118,7 @@ class SolarMinerPauseButton(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Pause"
+        self._attr_name = f"{self._display_name} Pause"
         self._attr_unique_id = f"{config_entry.entry_id}_pause_button"
         self._attr_icon = "mdi:pause"
     
@@ -133,7 +146,7 @@ class SolarMinerResumeButton(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Resume"
+        self._attr_name = f"{self._display_name} Resume"
         self._attr_unique_id = f"{config_entry.entry_id}_resume_button"
         self._attr_icon = "mdi:play"
     
@@ -161,7 +174,7 @@ class SolarMinerSolarMaxButton(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Solar Max"
+        self._attr_name = f"{self._display_name} Solar Max"
         self._attr_unique_id = f"{config_entry.entry_id}_solar_max_button"
         self._attr_icon = "mdi:solar-power-variant"
     
@@ -195,7 +208,7 @@ class SolarMinerEcoModeButton(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Eco Mode"
+        self._attr_name = f"{self._display_name} Eco Mode"
         self._attr_unique_id = f"{config_entry.entry_id}_eco_mode_button"
         self._attr_icon = "mdi:leaf"
     
@@ -229,7 +242,7 @@ class SolarMinerMaxPowerButton(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Max Power"
+        self._attr_name = f"{self._display_name} Max Power"
         self._attr_unique_id = f"{config_entry.entry_id}_max_power_button"
         self._attr_icon = "mdi:lightning-bolt"
     
@@ -271,7 +284,7 @@ class SolarMinerBalancedButton(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Balanced"
+        self._attr_name = f"{self._display_name} Balanced"
         self._attr_unique_id = f"{config_entry.entry_id}_balanced_button"
         self._attr_icon = "mdi:scale-balance"
     
@@ -313,7 +326,7 @@ class SolarMinerUltraEcoButton(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Ultra Eco"
+        self._attr_name = f"{self._display_name} Ultra Eco"
         self._attr_unique_id = f"{config_entry.entry_id}_ultra_eco_button"
         self._attr_icon = "mdi:leaf-circle"
     
@@ -355,7 +368,7 @@ class SolarMinerUpdateSolarPowerButton(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Update Solar Power"
+        self._attr_name = f"{self._display_name} Update Solar Power"
         self._attr_unique_id = f"{config_entry.entry_id}_update_solar_power_button"
         self._attr_icon = "mdi:solar-power"
     
@@ -381,7 +394,7 @@ class SolarMinerNightMode30Button(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Night Mode 30%"
+        self._attr_name = f"{self._display_name} Night Mode 30%"
         self._attr_unique_id = f"{config_entry.entry_id}_night_mode_30_button"
         self._attr_icon = "mdi:weather-night"
     
@@ -417,7 +430,7 @@ class SolarMinerNightMode15Button(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Night Mode 15%"
+        self._attr_name = f"{self._display_name} Night Mode 15%"
         self._attr_unique_id = f"{config_entry.entry_id}_night_mode_15_button"
         self._attr_icon = "mdi:sleep"
     
@@ -453,7 +466,7 @@ class SolarMinerStandbyButton(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Standby"
+        self._attr_name = f"{self._display_name} Standby"
         self._attr_unique_id = f"{config_entry.entry_id}_standby_button"
         self._attr_icon = "mdi:power-standby"
     
@@ -481,7 +494,7 @@ class SolarMinerPeakSolarButton(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Peak Solar"
+        self._attr_name = f"{self._display_name} Peak Solar"
         self._attr_unique_id = f"{config_entry.entry_id}_peak_solar_button"
         self._attr_icon = "mdi:weather-sunny"
     
@@ -518,7 +531,7 @@ class SolarMinerRebootButton(SolarMinerButtonEntity):
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Reboot"
+        self._attr_name = f"{self._display_name} Reboot"
         self._attr_unique_id = f"{config_entry.entry_id}_reboot_button"
         self._attr_icon = "mdi:restart"
     

@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, SOLAR_MODES, NIGHT_MODES, POWER_PROFILES
+from .const import DOMAIN, SOLAR_MODES, NIGHT_MODES, POWER_PROFILES, CONF_ALIAS
 from . import SolarMinerDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,9 +59,12 @@ class SolarMinerSelectEntity(CoordinatorEntity, SelectEntity):
         host_ip = config_entry.data['host']
         device_id = f"solarminer_{host_ip.replace('.', '_')}"
         
+        # Get display name from alias or fallback to IP
+        self._display_name = self._get_display_name()
+        
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},
-            "name": f"Solar Miner {host_ip}",
+            "name": self._display_name,
             "manufacturer": "Bitmain",
             "model": self._get_miner_model(),
             "sw_version": self._get_firmware_version(),
@@ -83,6 +86,16 @@ class SolarMinerSelectEntity(CoordinatorEntity, SelectEntity):
             if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
                 return summary_data["SUMMARY"][0].get("Version", "Unknown")
         return "Unknown"
+    
+    def _get_display_name(self) -> str:
+        """Get display name from alias or fallback to default."""
+        alias = self._config_entry.data.get(CONF_ALIAS, "").strip()
+        if alias:
+            return alias
+        else:
+            # Fallback to IP address for backward compatibility
+            host_ip = self._config_entry.data['host']
+            return f"Solar Miner {host_ip}"
 
 
 class SolarMinerSolarModeSelect(SolarMinerSelectEntity):
@@ -96,7 +109,7 @@ class SolarMinerSolarModeSelect(SolarMinerSelectEntity):
     ) -> None:
         """Initialize the select entity."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Solar Mode"
+        self._attr_name = f"{self._display_name} Solar Mode"
         self._attr_unique_id = f"{config_entry.entry_id}_solar_mode_select"
         self._attr_options = list(SOLAR_MODES.values())
         self._attr_icon = "mdi:solar-power"
@@ -155,7 +168,7 @@ class SolarMinerNightModeSelect(SolarMinerSelectEntity):
     ) -> None:
         """Initialize the select entity."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Night Mode"
+        self._attr_name = f"{self._display_name} Night Mode"
         self._attr_unique_id = f"{config_entry.entry_id}_night_mode_select"
         self._attr_options = [mode["name"] for mode in NIGHT_MODES.values()]
         self._attr_icon = "mdi:weather-night"
@@ -230,7 +243,7 @@ class SolarMinerPowerProfileSelect(SolarMinerSelectEntity):
     ) -> None:
         """Initialize the select entity."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Power Profile"
+        self._attr_name = f"{self._display_name} Power Profile"
         self._attr_unique_id = f"{config_entry.entry_id}_power_profile_select"
         self._attr_options = [profile["name"] for profile in POWER_PROFILES.values()]
         self._attr_icon = "mdi:speedometer"
@@ -304,7 +317,7 @@ class SolarMinerPoolSelect(SolarMinerSelectEntity):
     ) -> None:
         """Initialize the select entity."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Pool"
+        self._attr_name = f"{self._display_name} Pool"
         self._attr_unique_id = f"{config_entry.entry_id}_pool_select"
         self._attr_options = []
         self._attr_icon = "mdi:server-network"

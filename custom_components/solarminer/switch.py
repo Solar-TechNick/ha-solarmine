@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_ALIAS
 from . import SolarMinerDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,9 +61,12 @@ class SolarMinerSwitchEntity(CoordinatorEntity, SwitchEntity):
         host_ip = config_entry.data['host']
         device_id = f"solarminer_{host_ip.replace('.', '_')}"
         
+        # Get display name from alias or fallback to IP
+        self._display_name = self._get_display_name()
+        
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},
-            "name": f"Solar Miner {host_ip}",
+            "name": self._display_name,
             "manufacturer": "Bitmain",
             "model": self._get_miner_model(),
             "sw_version": self._get_firmware_version(),
@@ -85,6 +88,16 @@ class SolarMinerSwitchEntity(CoordinatorEntity, SwitchEntity):
             if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
                 return summary_data["SUMMARY"][0].get("Version", "Unknown")
         return "Unknown"
+    
+    def _get_display_name(self) -> str:
+        """Get display name from alias or fallback to default."""
+        alias = self._config_entry.data.get(CONF_ALIAS, "").strip()
+        if alias:
+            return alias
+        else:
+            # Fallback to IP address for backward compatibility
+            host_ip = self._config_entry.data['host']
+            return f"Solar Miner {host_ip}"
 
 
 class SolarMinerHashboardSwitch(SolarMinerSwitchEntity):
@@ -100,7 +113,7 @@ class SolarMinerHashboardSwitch(SolarMinerSwitchEntity):
         """Initialize the switch."""
         super().__init__(coordinator, client, config_entry)
         self._board_id = board_id
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Board {board_id}"
+        self._attr_name = f"{self._display_name} Board {board_id}"
         self._attr_unique_id = f"{config_entry.entry_id}_board_{board_id}_switch"
         self._attr_icon = "mdi:memory"
     
@@ -195,7 +208,7 @@ class SolarMinerMiningSwitch(SolarMinerSwitchEntity):
     ) -> None:
         """Initialize the switch."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Mining"
+        self._attr_name = f"{self._display_name} Mining"
         self._attr_unique_id = f"{config_entry.entry_id}_mining_switch"
         self._attr_icon = "mdi:pickaxe"
     
@@ -270,7 +283,7 @@ class SolarMinerPauseMiningSwitch(SolarMinerSwitchEntity):
     ) -> None:
         """Initialize the switch."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Pause Mining"
+        self._attr_name = f"{self._display_name} Pause Mining"
         self._attr_unique_id = f"{config_entry.entry_id}_pause_mining_switch"
         self._attr_icon = "mdi:pause-circle"
         self._is_paused = False
@@ -328,7 +341,7 @@ class SolarMinerSolarModeSwitch(SolarMinerSwitchEntity):
     ) -> None:
         """Initialize the switch."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Solar Mode"
+        self._attr_name = f"{self._display_name} Solar Mode"
         self._attr_unique_id = f"{config_entry.entry_id}_solar_mode_switch"
         self._attr_icon = "mdi:solar-power"
         self._solar_mode_enabled = False
@@ -370,7 +383,7 @@ class SolarMinerAutoStandbySwitch(SolarMinerSwitchEntity):
     ) -> None:
         """Initialize the switch."""
         super().__init__(coordinator, client, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Auto Standby"
+        self._attr_name = f"{self._display_name} Auto Standby"
         self._attr_unique_id = f"{config_entry.entry_id}_auto_standby_switch"
         self._attr_icon = "mdi:power-standby"
         self._auto_standby_enabled = False

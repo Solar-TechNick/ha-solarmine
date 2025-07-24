@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_ALIAS
 from .luxos_client import LuxOSClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,6 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
+        vol.Optional(CONF_ALIAS, default=""): str,
         vol.Optional(CONF_PORT, default=80): int,
         vol.Optional(CONF_USERNAME): str,
         vol.Optional(CONF_PASSWORD): str,
@@ -53,11 +54,16 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         host_ip = data[CONF_HOST]
         unique_id = f"solarminer_{host_ip.replace('.', '_')}"
         
-        # If we have a serial, include it in the title for clarity
-        if miner_serial and miner_serial != "Unknown":
-            title = f"Solar Miner {miner_model} ({host_ip}) - {miner_serial}"
+        # Create title using alias if provided, otherwise use model and IP
+        alias = data.get(CONF_ALIAS, "").strip()
+        if alias:
+            title = f"Solar Miner - {alias}"
         else:
-            title = f"Solar Miner {miner_model} ({host_ip})"
+            # Fallback to model and IP if no alias provided
+            if miner_serial and miner_serial != "Unknown":
+                title = f"Solar Miner {miner_model} ({host_ip}) - {miner_serial}"
+            else:
+                title = f"Solar Miner {miner_model} ({host_ip})"
         
         return {
             "title": title,
@@ -65,6 +71,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
             "miner_serial": miner_serial,
             "unique_id": unique_id,
             "host_ip": host_ip,
+            "alias": alias,
         }
     except Exception as exc:
         _LOGGER.error("Error connecting to miner: %s", exc)

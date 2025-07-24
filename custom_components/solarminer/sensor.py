@@ -23,7 +23,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_ALIAS
 from . import SolarMinerDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -96,9 +96,12 @@ class SolarMinerSensorEntity(CoordinatorEntity, SensorEntity):
         host_ip = config_entry.data['host']
         device_id = f"solarminer_{host_ip.replace('.', '_')}"
         
+        # Get display name from alias or fallback to IP
+        self._display_name = self._get_display_name()
+        
         self._attr_device_info = {
             "identifiers": {(DOMAIN, device_id)},
-            "name": f"Solar Miner {host_ip}",
+            "name": self._display_name,
             "manufacturer": "Bitmain",
             "model": self._get_miner_model(),
             "sw_version": self._get_firmware_version(),
@@ -120,6 +123,16 @@ class SolarMinerSensorEntity(CoordinatorEntity, SensorEntity):
             if "SUMMARY" in summary_data and summary_data["SUMMARY"]:
                 return summary_data["SUMMARY"][0].get("Version", "Unknown")
         return "Unknown"
+    
+    def _get_display_name(self) -> str:
+        """Get display name from alias or fallback to default."""
+        alias = self._config_entry.data.get(CONF_ALIAS, "").strip()
+        if alias:
+            return alias
+        else:
+            # Fallback to IP address for backward compatibility
+            host_ip = self._config_entry.data['host']
+            return f"Solar Miner {host_ip}"
 
 
 class SolarMinerHashrateSensor(SolarMinerSensorEntity):
@@ -132,7 +145,7 @@ class SolarMinerHashrateSensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Hashrate"
+        self._attr_name = f"{self._display_name} Hashrate"
         self._attr_unique_id = f"{config_entry.entry_id}_hashrate"
         self._attr_native_unit_of_measurement = "TH/s"
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -165,7 +178,7 @@ class SolarMinerPowerSensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Power"
+        self._attr_name = f"{self._display_name} Power"
         self._attr_unique_id = f"{config_entry.entry_id}_power"
         self._attr_native_unit_of_measurement = UnitOfPower.WATT
         self._attr_device_class = SensorDeviceClass.POWER
@@ -231,7 +244,7 @@ class SolarMinerTemperatureSensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Temperature"
+        self._attr_name = f"{self._display_name} Temperature"
         self._attr_unique_id = f"{config_entry.entry_id}_temperature"
         self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         self._attr_device_class = SensorDeviceClass.TEMPERATURE
@@ -267,7 +280,7 @@ class SolarMinerFanSpeedSensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Fan Speed"
+        self._attr_name = f"{self._display_name} Fan Speed"
         self._attr_unique_id = f"{config_entry.entry_id}_fan_speed"
         self._attr_native_unit_of_measurement = "RPM"
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -320,7 +333,7 @@ class SolarMinerEfficiencySensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Efficiency"
+        self._attr_name = f"{self._display_name} Efficiency"
         self._attr_unique_id = f"{config_entry.entry_id}_efficiency"
         self._attr_native_unit_of_measurement = "J/TH"
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -378,7 +391,7 @@ class SolarMinerBoardSensor(SolarMinerSensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
         self._board_id = board_id
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Board {board_id}"
+        self._attr_name = f"{self._display_name} Board {board_id}"
         self._attr_unique_id = f"{config_entry.entry_id}_board_{board_id}"
         self._attr_native_unit_of_measurement = "TH/s"
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -464,7 +477,7 @@ class SolarMinerPoolSensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Pool"
+        self._attr_name = f"{self._display_name} Pool"
         self._attr_unique_id = f"{config_entry.entry_id}_pool"
         self._attr_icon = "mdi:server-network"
     
@@ -511,7 +524,7 @@ class SolarMinerSolarPowerSensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Solar Power"
+        self._attr_name = f"{self._display_name} Solar Power"
         self._attr_unique_id = f"{config_entry.entry_id}_solar_power"
         self._attr_native_unit_of_measurement = UnitOfPower.WATT
         self._attr_device_class = SensorDeviceClass.POWER
@@ -536,7 +549,7 @@ class SolarMinerProfileSensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Profile"
+        self._attr_name = f"{self._display_name} Profile"
         self._attr_unique_id = f"{config_entry.entry_id}_profile"
         self._attr_icon = "mdi:tune"
     
@@ -616,7 +629,7 @@ class SolarMinerSolarEfficiencySensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Solar Efficiency"
+        self._attr_name = f"{self._display_name} Solar Efficiency"
         self._attr_unique_id = f"{config_entry.entry_id}_solar_efficiency"
         self._attr_native_unit_of_measurement = PERCENTAGE
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -678,7 +691,7 @@ class SolarMinerStatusSensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Status"
+        self._attr_name = f"{self._display_name} Status"
         self._attr_unique_id = f"{config_entry.entry_id}_status"
         self._attr_icon = "mdi:information"
     
@@ -715,7 +728,7 @@ class SolarMinerUptimeSensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Uptime"
+        self._attr_name = f"{self._display_name} Uptime"
         self._attr_unique_id = f"{config_entry.entry_id}_uptime"
         self._attr_native_unit_of_measurement = "days"
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -749,7 +762,7 @@ class SolarMinerBoardTemperatureSensor(SolarMinerSensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
         self._board_id = board_id
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Board {board_id} Temperature"
+        self._attr_name = f"{self._display_name} Board {board_id} Temperature"
         self._attr_unique_id = f"{config_entry.entry_id}_board_{board_id}_temperature"
         self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
         self._attr_device_class = SensorDeviceClass.TEMPERATURE
@@ -783,7 +796,7 @@ class SolarMinerFanSensor(SolarMinerSensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
         self._fan_id = fan_id
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Fan {fan_id}"
+        self._attr_name = f"{self._display_name} Fan {fan_id}"
         self._attr_unique_id = f"{config_entry.entry_id}_fan_{fan_id}"
         self._attr_native_unit_of_measurement = "RPM"
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -818,7 +831,7 @@ class SolarMinerIdealHashrateSensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Ideal Hashrate"
+        self._attr_name = f"{self._display_name} Ideal Hashrate"
         self._attr_unique_id = f"{config_entry.entry_id}_ideal_hashrate"
         self._attr_native_unit_of_measurement = "TH/s"
         self._attr_state_class = SensorStateClass.MEASUREMENT
@@ -890,7 +903,7 @@ class SolarMinerEfficiencyJouleSensor(SolarMinerSensorEntity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, config_entry)
-        self._attr_name = f"Solar Miner {config_entry.data['host']} Power Efficiency"
+        self._attr_name = f"{self._display_name} Power Efficiency"
         self._attr_unique_id = f"{config_entry.entry_id}_power_efficiency"
         self._attr_native_unit_of_measurement = "J/TH"
         self._attr_state_class = SensorStateClass.MEASUREMENT

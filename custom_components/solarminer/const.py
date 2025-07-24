@@ -2,6 +2,9 @@
 
 DOMAIN = "solarminer"
 
+# Configuration keys
+CONF_ALIAS = "alias"
+
 # Default configuration
 DEFAULT_SCAN_INTERVAL = 10
 DEFAULT_TIMEOUT = 10
